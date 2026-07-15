@@ -1,0 +1,49 @@
+# Pipeline — generazione contenuti con Claude Agent SDK
+
+## Ruolo
+
+Questa cartella contiene l'"operaio" del sistema: script TypeScript basati su Claude Agent SDK
+che, dato un sito e le sue fonti, producono articoli Markdown/MDX conformi allo schema
+frontmatter e li salvano in `sites/<sito>/src/content/news/` con `draft: true`.
+
+## Vincolo economico (tenerlo presente nel design)
+
+L'uso programmatico dell'Agent SDK NON rientra nei limiti flat dell'abbonamento Max:
+consuma il credito SDK mensile del piano e poi eventuale pay-as-you-go. Quindi:
+
+- Minimizzare i token: passare al modello solo il testo utile (niente HTML grezzo delle
+  pagine fonte — estrarre prima il contenuto con parsing locale).
+- Fare pre-filtering locale (dedup, rilevanza) PRIMA di chiamare il modello.
+- Un articolo = idealmente una singola chiamata ben strutturata, non una conversazione lunga.
+- Loggare token usati per run (il costo per articolo è una metrica di prima classe).
+- `--dry-run` non deve chiamare il modello più del necessario.
+
+## Struttura
+
+- `sources/<sito>.ts` — definizione fonti per sito/categoria: feed RSS, API (es. Epic/Steam
+  per giochi gratis), pagine da monitorare. Ogni fonte ha: url, tipo, categoria, peso.
+- `prompts/` — i prompt editoriali, versionati come codice. Un file per tipo di articolo
+  (news breve, recensione-aggregato, lista "giochi gratis della settimana"). I prompt
+  incorporano i vincoli di contenuto del CLAUDE.md di root (no copia, fonti citate,
+  frontmatter valido).
+- `state/` (gitignored) — registro locale delle notizie già coperte (hash/URL) per il dedup.
+
+## Flusso di un run
+
+1. Fetch fonti → normalizzazione (titolo, testo, url, data)
+2. Dedup contro `state/` e contro gli articoli già presenti nel sito
+3. Selezione candidati (regole locali: novità, rilevanza per categoria)
+4. Per ogni candidato: chiamata Agent SDK con prompt editoriale + materiale fonte
+5. Validazione output: frontmatter contro lo schema Zod condiviso; se invalido, scarto e log
+6. Scrittura file `.md`/`.mdx` con `draft: true` + aggiornamento `state/`
+
+La build e il deploy NON sono compiti della pipeline: li orchestrano cron/systemd + hook
+(vedi `infra/`). La pipeline produce solo file di contenuto.
+
+## Qualità editoriale
+
+- Ogni articolo: fonti multiple quando possibile, link espliciti, date verificate.
+- Tono: informativo, asciutto, zero clickbait. Niente affermazioni non supportate dalle fonti.
+- Lunghezza tipica: 300–600 parole per news; le liste/guide possono essere più lunghe.
+- Usare i componenti MDX condivisi quando il tipo di articolo lo prevede
+  (es. `<ProsCons>`, `<SchedaTecnica>`).
