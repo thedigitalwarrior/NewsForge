@@ -1,0 +1,33 @@
+---
+import BaseLayout from "@shared/layouts/BaseLayout.astro";
+import { site } from "../config/site";
+---
+
+<BaseLayout
+  site={site}
+  title="Chi siamo"
+  description="Come nascono i contenuti di TabletNexus e il ruolo dell'AI."
+>
+  <div class="mx-auto max-w-3xl px-4 py-10">
+    <div class="prose prose-lg prose-gray max-w-none">
+      <h1>Chi siamo</h1>
+      <p>
+        {site.name} è un sito indipendente dedicato al mondo dei tablet: novità,
+        confronti e guide all'acquisto scritte in modo chiaro e senza clickbait.
+      </p>
+      <h2>Il ruolo dell'AI</h2>
+      <p>
+        I nostri articoli sono realizzati con l'ausilio di strumenti di
+        intelligenza artificiale, sotto supervisione umana. L'AI aiuta a
+        sintetizzare informazioni da più fonti; la selezione dei temi, la verifica
+        dei fatti e la pubblicazione restano decisioni umane.
+      </p>
+      <h2>Le fonti</h2>
+      <p>
+        Ogni articolo cita le fonti su cui si basa. Non copiamo né parafrasiamo da
+        vicino il lavoro altrui: produciamo sintesi originali con fatti verificati
+        su più fonti.
+      </p>
+    </div>
+  </div>
+</BaseLayout>

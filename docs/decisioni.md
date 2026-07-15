@@ -94,3 +94,26 @@ sito resta intatta a mano (regola CLAUDE.md) fino a quando la pipeline vi scrive
 reali. Vite `server.fs.allow` include la root del monorepo per leggere fuori dal progetto.
 In dev NON si filtrano le bozze (le fixtures sono tutte `draft: true`); il filtro
 draft→publish arriverà con la pipeline.
+
+## 2026-07 — Design system tutto in _shared, siti sottili
+Layout, componenti e componenti MDX vivono in `sites/_shared/src` e i siti li importano via
+alias `@shared/*`. Un sito è "sottile": `config/site.ts` (branding), pagine che passano il
+config ai layout condivisi, `content.config.ts`. `ArticleLayout` fa esso stesso il `render()`
+del post e passa i componenti MDX a `<Content>`, così le pagine dei siti restano di poche
+righe. Scartato: duplicare layout/CSS in ogni sito (violerebbe la regola "il 90% vive in
+_shared" e moltiplicherebbe la manutenzione).
+
+## 2026-07 — Theming per-sito via CSS variables
+L'accento brand di ogni sito è una CSS var (`--brand` / `--brand-dark`) iniettata da
+`BaseLayout` sull'elemento `<html>` a partire da `site.brand`; `global.css` mappa le utility
+Tailwind `*-brand` / `*-brand-dark` su quelle var (`@theme { --color-brand: var(--brand) }`).
+Così i componenti condivisi non conoscono i colori dei singoli siti e un nuovo sito cambia
+palette modificando solo il suo `config/site.ts`. Scartato: un `tailwind.config` per sito o
+classi hardcoded per brand.
+
+## 2026-07 — Componenti MDX passati via prop `components`
+`SchedaTecnica`, `ProsCons`, `TabellaPrezzi` sono raccolti in `mdxComponents` (barrel) e
+passati a `<Content components={mdxComponents} />` in `ArticleLayout`. Conseguenza: gli
+articoli MDX prodotti dalla pipeline li usano come tag (`<ProsCons .../>`) senza righe di
+`import`, riducendo la superficie di errore dell'agente. I componenti usano `not-prose` per
+sfuggire agli stili tipografici del corpo.

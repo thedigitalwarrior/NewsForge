@@ -1,0 +1,40 @@
+---
+import "../styles/global.css";
+import type { SiteConfig } from "../config/site";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+
+interface Props {
+  site: SiteConfig;
+  title: string;
+  description?: string;
+  /** Set false on the homepage so the tab shows just the site name. */
+  suffixSiteName?: boolean;
+}
+
+const { site, title, description, suffixSiteName = true } = Astro.props;
+const metaDescription = description ?? site.description;
+const pageTitle = suffixSiteName ? `${title} — ${site.name}` : title;
+
+// Inject the per-site brand accent as CSS variables consumed by the shared theme.
+const brandStyle = `--brand:${site.brand.accent};--brand-dark:${site.brand.accentDark};`;
+---
+
+<!doctype html>
+<html lang="it" style={brandStyle}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={metaDescription} />
+    <meta name="generator" content={Astro.generator} />
+  </head>
+  <body class="flex min-h-screen flex-col bg-white text-gray-900 antialiased">
+    <SiteHeader site={site} />
+    <main class="flex-1">
+      <slot />
+    </main>
+    <SiteFooter site={site} />
+  </body>
+</html>

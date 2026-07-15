@@ -1,37 +1,23 @@
 ---
 import { getCollection } from "astro:content";
-import BaseLayout from "../layouts/BaseLayout.astro";
+import BaseLayout from "@shared/layouts/BaseLayout.astro";
+import ArticleCard from "@shared/components/ArticleCard.astro";
+import { site } from "../config/site";
 
-// Show everything (including drafts) during theme development — fixtures are
-// all draft: true. Publishing/draft filtering comes later in the pipeline phase.
+// Show everything (including drafts) during theme development — fixtures are all
+// draft: true. Draft/publish filtering arrives with the pipeline phase.
 const posts = (await getCollection("news")).sort(
   (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime(),
 );
-
-const dateFmt = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
+const [lead, ...rest] = posts;
 ---
 
-<BaseLayout
-  title="Home"
-  description="Novità, confronti e prezzi dei tablet."
->
-  <h1 class="mb-6 text-2xl font-bold">Ultimi articoli</h1>
-  <ul class="space-y-6">
-    {
-      posts.map((post) => (
-        <li class="border-b border-gray-100 pb-6">
-          <p class="text-xs uppercase tracking-wide text-gray-500">
-            {post.data.category} · {dateFmt.format(post.data.pubDate)}
-            {post.data.draft && " · bozza"}
-          </p>
-          <h2 class="mt-1 text-lg font-semibold">
-            <a href={`/news/${post.id}/`} class="hover:underline">
-              {post.data.title}
-            </a>
-          </h2>
-          <p class="mt-1 text-gray-600">{post.data.description}</p>
-        </li>
-      ))
-    }
-  </ul>
+<BaseLayout site={site} title="Home" suffixSiteName={false}>
+  <div class="mx-auto max-w-5xl px-4 py-10">
+    <h1 class="sr-only">{site.name} — {site.tagline}</h1>
+    <section class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {lead && <ArticleCard post={lead} featured />}
+      {rest.map((post) => <ArticleCard post={post} />)}
+    </section>
+  </div>
 </BaseLayout>

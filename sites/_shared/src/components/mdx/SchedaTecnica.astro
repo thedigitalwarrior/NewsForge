@@ -1,0 +1,48 @@
+---
+/**
+ * Spec sheet for a product. Usage in MDX:
+ *   <SchedaTecnica
+ *     nome="iPad Pro M5"
+ *     specifiche={[
+ *       { voce: "Display", valore: "13\" OLED, 120 Hz" },
+ *       { voce: "Chip", valore: "Apple M5" },
+ *     ]}
+ *   />
+ */
+interface Spec {
+  voce: string;
+  valore: string;
+}
+
+interface Props {
+  nome: string;
+  specifiche: Spec[];
+}
+
+const { nome, specifiche } = Astro.props;
+---
+
+<figure class="not-prose my-8 overflow-hidden rounded-xl border border-gray-200">
+  <figcaption
+    class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900"
+  >
+    Scheda tecnica · {nome}
+  </figcaption>
+  <table class="w-full text-sm">
+    <tbody>
+      {
+        specifiche.map((spec, i) => (
+          <tr class:list={[i % 2 === 1 && "bg-gray-50/60"]}>
+            <th
+              scope="row"
+              class="w-2/5 px-4 py-2 text-left font-medium text-gray-500"
+            >
+              {spec.voce}
+            </th>
+            <td class="px-4 py-2 text-gray-900">{spec.valore}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</figure>

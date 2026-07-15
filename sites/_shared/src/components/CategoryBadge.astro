@@ -1,0 +1,20 @@
+---
+import { slugify } from "../lib/utils";
+
+interface Props {
+  category: string;
+  class?: string;
+}
+
+const { category, class: className } = Astro.props;
+---
+
+<a
+  href={`/categoria/${slugify(category)}/`}
+  class:list={[
+    "inline-block rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-dark transition hover:bg-brand/20",
+    className,
+  ]}
+>
+  {category}
+</a>

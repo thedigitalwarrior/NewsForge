@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/*
+ * Design tokens shared by every site in the network. Brand accent is a runtime
+ * CSS variable (`--brand` / `--brand-dark`) set per-site by BaseLayout from the
+ * site config, so the shared components stay brand-agnostic. Tailwind utilities
+ * `*-brand` / `*-brand-dark` resolve to those variables.
+ */
+@theme {
+  --color-brand: var(--brand, #2563eb);
+  --color-brand-dark: var(--brand-dark, #1e40af);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Tighten the default prose so article bodies feel editorial, not bloggy. */
+.prose {
+  --tw-prose-links: var(--color-brand-dark);
+}

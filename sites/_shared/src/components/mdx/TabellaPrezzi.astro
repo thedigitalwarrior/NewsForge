@@ -1,0 +1,54 @@
+---
+/**
+ * Price table. Usage in MDX:
+ *   <TabellaPrezzi
+ *     voci={[
+ *       { modello: "128 GB", prezzo: "1.229 €", nota: "Wi-Fi" },
+ *       { modello: "256 GB", prezzo: "1.429 €" },
+ *     ]}
+ *   />
+ */
+interface Voce {
+  modello: string;
+  prezzo: string;
+  nota?: string;
+}
+
+interface Props {
+  voci: Voce[];
+  /** Optional caption above the table. */
+  titolo?: string;
+}
+
+const { voci, titolo = "Prezzi" } = Astro.props;
+---
+
+<figure class="not-prose my-8 overflow-hidden rounded-xl border border-gray-200">
+  <figcaption
+    class="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900"
+  >
+    {titolo}
+  </figcaption>
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+        <th scope="col" class="px-4 py-2 font-medium">Modello</th>
+        <th scope="col" class="px-4 py-2 font-medium">Note</th>
+        <th scope="col" class="px-4 py-2 text-right font-medium">Prezzo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        voci.map((voce, i) => (
+          <tr class:list={["border-b border-gray-100", i % 2 === 1 && "bg-gray-50/60"]}>
+            <td class="px-4 py-2 font-medium text-gray-900">{voce.modello}</td>
+            <td class="px-4 py-2 text-gray-500">{voce.nota ?? "—"}</td>
+            <td class="px-4 py-2 text-right font-semibold text-brand-dark">
+              {voce.prezzo}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</figure>

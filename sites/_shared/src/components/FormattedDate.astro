@@ -1,0 +1,15 @@
+---
+interface Props {
+  date: Date;
+  /** Intl date style; "medium" for cards, "long" for the article header. */
+  style?: "medium" | "long";
+  class?: string;
+}
+
+const { date, style = "medium", class: className } = Astro.props;
+const formatted = new Intl.DateTimeFormat("it-IT", { dateStyle: style }).format(
+  date,
+);
+---
+
+<time datetime={date.toISOString()} class={className}>{formatted}</time>

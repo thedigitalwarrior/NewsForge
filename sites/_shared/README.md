@@ -1,6 +1,29 @@
-# Tema condiviso
+# Tema condiviso (`@newsforge/shared`)
 
-Qui vivono: componenti Astro e MDX comuni, layout, stile Tailwind, schema delle content
-collections (`src/content/config.ts`), fixture di articoli finti per lo sviluppo del tema.
-I siti in `sites/<dominio>/` importano da qui e sovrascrivono solo branding e categorie.
-(Da popolare nella sessione 2–3 della roadmap.)
+Il 90% di ogni sito news vive qui. I siti in `sites/<dominio>/` importano da questo
+pacchetto via alias `@shared/*` e forniscono solo branding, categorie e contenuti.
+
+## Struttura
+
+- `src/content/config.ts` — schema Zod del frontmatter (`newsSchema`), fonte di verità.
+- `src/config/site.ts` — tipo `SiteConfig` che ogni sito implementa (nome, dominio, tagline,
+  colori brand, categorie).
+- `src/styles/global.css` — entry Tailwind v4 + token. L'accento brand è una CSS var
+  (`--brand` / `--brand-dark`) impostata a runtime da `BaseLayout` dal config del sito, così
+  i componenti restano brand-agnostici (utility `*-brand` / `*-brand-dark`).
+- `src/layouts/` — `BaseLayout.astro` (shell HTML, header, footer, brand var),
+  `ArticleLayout.astro` (rende il contenuto con i componenti MDX, fonti, hero image).
+- `src/components/` — `SiteHeader`, `SiteFooter`, `ArticleCard`, `CategoryBadge`,
+  `FormattedDate`.
+- `src/components/mdx/` — componenti per gli articoli MDX (`SchedaTecnica`, `ProsCons`,
+  `TabellaPrezzi`), esposti dal barrel `index.ts` (`mdxComponents`) e passati a `<Content>`
+  in `ArticleLayout`, così la pipeline può usarli senza `import` espliciti nell'MDX.
+- `src/lib/utils.ts` — utility condivise (es. `slugify`).
+- `fixtures/` — articoli finti (`.md`/`.mdx`) per lo sviluppo del tema. La collection dei
+  siti li carica al posto di `src/content/news/` (che resta intatto fino alla pipeline).
+
+## Come un sito consuma il tema
+
+1. `src/config/site.ts` esporta un oggetto `SiteConfig`.
+2. Le pagine importano layout/componenti da `@shared/*` e passano `site` ai layout.
+3. `src/content.config.ts` importa `newsSchema` da `@shared/content/config`.

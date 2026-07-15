@@ -1,0 +1,57 @@
+---
+import type { CollectionEntry } from "astro:content";
+import CategoryBadge from "./CategoryBadge.astro";
+import FormattedDate from "./FormattedDate.astro";
+
+interface Props {
+  post: CollectionEntry<"news">;
+  /** Render as the large lead card (first item on the homepage). */
+  featured?: boolean;
+}
+
+const { post, featured = false } = Astro.props;
+const { title, description, pubDate, category, image, imageAlt, draft } =
+  post.data;
+const href = `/news/${post.id}/`;
+---
+
+<article
+  class:list={[
+    "group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:border-brand hover:shadow-md",
+    featured && "sm:col-span-2",
+  ]}
+>
+  {
+    image && (
+      <a href={href} class="block overflow-hidden">
+        <img
+          src={image}
+          alt={imageAlt}
+          loading="lazy"
+          class:list={[
+            "w-full object-cover transition duration-300 group-hover:scale-[1.02]",
+            featured ? "aspect-[2/1]" : "aspect-[16/9]",
+          ]}
+        />
+      </a>
+    )
+  }
+  <div class="flex flex-1 flex-col gap-3 p-5">
+    <div class="flex items-center gap-2 text-xs text-gray-500">
+      <CategoryBadge category={category} class="relative z-10" />
+      <FormattedDate date={pubDate} />
+      {draft && <span class="font-medium text-amber-600">· bozza</span>}
+    </div>
+    <h2
+      class:list={[
+        "font-bold leading-snug text-gray-900",
+        featured ? "text-2xl" : "text-lg",
+      ]}
+    >
+      <a href={href} class="after:absolute after:inset-0 group-hover:text-brand-dark">
+        {title}
+      </a>
+    </h2>
+    <p class="text-sm leading-relaxed text-gray-600">{description}</p>
+  </div>
+</article>
