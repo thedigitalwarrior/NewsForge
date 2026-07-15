@@ -10,11 +10,26 @@ interface Props {
   description?: string;
   /** Set false on the homepage so the tab shows just the site name. */
   suffixSiteName?: boolean;
+  /** Absolute URL of the social preview image (og:image). */
+  image?: string;
+  /** Open Graph type: "website" (default) or "article". */
+  ogType?: "website" | "article";
 }
 
-const { site, title, description, suffixSiteName = true } = Astro.props;
+const {
+  site,
+  title,
+  description,
+  suffixSiteName = true,
+  image,
+  ogType = "website",
+} = Astro.props;
+
 const metaDescription = description ?? site.description;
 const pageTitle = suffixSiteName ? `${title} — ${site.name}` : title;
+
+// Canonical + social URLs. Astro.site comes from the `site` option in the config.
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
 // Inject the per-site brand accent as CSS variables consumed by the shared theme.
 const brandStyle = `--brand:${site.brand.accent};--brand-dark:${site.brand.accentDark};`;
@@ -26,9 +41,33 @@ const brandStyle = `--brand:${site.brand.accent};--brand-dark:${site.brand.accen
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="canonical" href={canonicalURL} />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={site.name}
+      href="/rss.xml"
+    />
     <title>{pageTitle}</title>
     <meta name="description" content={metaDescription} />
     <meta name="generator" content={Astro.generator} />
+
+    {/* Open Graph */}
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:url" content={canonicalURL} />
+    {image && <meta property="og:image" content={image} />}
+
+    {/* Twitter */}
+    <meta
+      name="twitter:card"
+      content={image ? "summary_large_image" : "summary"}
+    />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={metaDescription} />
+    {image && <meta name="twitter:image" content={image} />}
   </head>
   <body class="flex min-h-screen flex-col bg-white text-gray-900 antialiased">
     <SiteHeader site={site} />

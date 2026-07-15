@@ -1,14 +1,10 @@
 ---
-import { getCollection } from "astro:content";
 import BaseLayout from "@shared/layouts/BaseLayout.astro";
 import ArticleCard from "@shared/components/ArticleCard.astro";
+import { getVisibleNews } from "@shared/lib/news";
 import { site } from "../config/site";
 
-// Show everything (including drafts) during theme development — fixtures are all
-// draft: true. Draft/publish filtering arrives with the pipeline phase.
-const posts = (await getCollection("news")).sort(
-  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime(),
-);
+const posts = await getVisibleNews();
 const [lead, ...rest] = posts;
 ---
 

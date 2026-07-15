@@ -14,11 +14,13 @@ pacchetto via alias `@shared/*` e forniscono solo branding, categorie e contenut
 - `src/layouts/` — `BaseLayout.astro` (shell HTML, header, footer, brand var),
   `ArticleLayout.astro` (rende il contenuto con i componenti MDX, fonti, hero image).
 - `src/components/` — `SiteHeader`, `SiteFooter`, `ArticleCard`, `CategoryBadge`,
-  `FormattedDate`.
+  `FormattedDate`, `Search` (UI Pagefind, funziona solo dopo `build`).
 - `src/components/mdx/` — componenti per gli articoli MDX (`SchedaTecnica`, `ProsCons`,
   `TabellaPrezzi`), esposti dal barrel `index.ts` (`mdxComponents`) e passati a `<Content>`
   in `ArticleLayout`, così la pipeline può usarli senza `import` espliciti nell'MDX.
 - `src/lib/utils.ts` — utility condivise (es. `slugify`).
+- `src/lib/news.ts` — `getVisibleNews()`, unico punto che decide quali articoli sono visibili
+  (home, categorie, RSS, sitemap). Qui si attiverà il filtro bozze con la pipeline.
 - `fixtures/` — articoli finti (`.md`/`.mdx`) per lo sviluppo del tema. La collection dei
   siti li carica al posto di `src/content/news/` (che resta intatto fino alla pipeline).
 

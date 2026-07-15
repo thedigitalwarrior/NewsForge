@@ -1,17 +1,15 @@
 ---
-import { getCollection } from "astro:content";
 import type { GetStaticPaths } from "astro";
 import BaseLayout from "@shared/layouts/BaseLayout.astro";
 import ArticleCard from "@shared/components/ArticleCard.astro";
+import { getVisibleNews } from "@shared/lib/news";
 import { slugify } from "@shared/lib/utils";
 import { site } from "../../config/site";
 
 export const getStaticPaths = (async () => {
-  const posts = await getCollection("news");
+  const posts = await getVisibleNews();
   return site.categories.map((cat) => {
-    const items = posts
-      .filter((p) => slugify(p.data.category) === cat.slug)
-      .sort((a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime());
+    const items = posts.filter((p) => slugify(p.data.category) === cat.slug);
     return { params: { category: cat.slug }, props: { label: cat.label, items } };
   });
 }) satisfies GetStaticPaths;

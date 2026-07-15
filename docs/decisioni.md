@@ -117,3 +117,20 @@ passati a `<Content components={mdxComponents} />` in `ArticleLayout`. Conseguen
 articoli MDX prodotti dalla pipeline li usano come tag (`<ProsCons .../>`) senza righe di
 `import`, riducendo la superficie di errore dell'agente. I componenti usano `not-prose` per
 sfuggire agli stili tipografici del corpo.
+
+## 2026-07 — Ricerca: Pagefind Default UI, indice solo sugli articoli
+La ricerca usa la Default UI di Pagefind (`/pagefind/pagefind-ui.js` + css) generata dal CLI
+in `dist/pagefind/` durante `npm run build` (`astro build && pagefind --site dist`). Solo il
+corpo articolo ha `data-pagefind-body` (in `ArticleLayout`): così Pagefind indicizza gli
+articoli e ignora home/categorie/nav. La ricerca funziona sotto `astro build && preview` e in
+produzione, NON in `astro dev` (gli asset non esistono ancora: la pagina `/cerca` resta vuota,
+senza errori). Pagefind 1.5 suggerisce la nuova Component UI: rivalutabile in futuro, la
+Default UI basta ora.
+
+## 2026-07 — RSS/sitemap/SEO
+RSS: endpoint `src/pages/rss.xml.ts` per sito con `@astrojs/rss`, alimentato da
+`getVisibleNews()` (stessa sorgente di home e categorie, così restano coerenti). Sitemap:
+integrazione `@astrojs/sitemap` (richiede `site` in config, già presente) → `sitemap-index.xml`
+al build. SEO: `BaseLayout` emette canonical, Open Graph e Twitter card; `ArticleLayout` passa
+`og:image` assoluto (`new URL(image, Astro.site)`, gestisce sia URL remoti sia path locali) e
+`og:type=article`. Autodiscovery RSS via `<link rel="alternate">` nell'head.

@@ -1,0 +1,35 @@
+---
+/*
+ * Pagefind search UI. The pagefind bundle (`/pagefind/pagefind-ui.js` + css) is
+ * produced by the `pagefind` CLI during `npm run build`, so search works under
+ * `astro build && astro preview` and in production — NOT under `astro dev`,
+ * where the assets 404 harmlessly and the box simply stays empty.
+ */
+---
+
+<div id="search" class="pagefind-ui"></div>
+
+<link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+<script is:inline src="/pagefind/pagefind-ui.js"></script>
+<script is:inline>
+  window.addEventListener("DOMContentLoaded", () => {
+    if (typeof window.PagefindUI === "undefined") return;
+    new window.PagefindUI({
+      element: "#search",
+      showSubResults: true,
+      showImages: false,
+      translations: {
+        placeholder: "Cerca articoli…",
+        zero_results: "Nessun risultato per «[SEARCH_TERM]»",
+      },
+    });
+  });
+</script>
+
+<style>
+  /* Tint the Pagefind UI with the site brand accent. */
+  .pagefind-ui {
+    --pagefind-ui-primary: var(--brand-dark);
+    --pagefind-ui-font: inherit;
+  }
+</style>
