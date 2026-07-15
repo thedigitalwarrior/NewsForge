@@ -1,0 +1,14 @@
+{
+  "name": "newsforge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "sites/_shared",
+    "sites/tabletnexus"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace sites/tabletnexus",
+    "build": "npm run build --workspace sites/tabletnexus"
+  }
+}

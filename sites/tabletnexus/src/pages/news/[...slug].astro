@@ -1,0 +1,64 @@
+---
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection("news");
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+const dateFmt = new Intl.DateTimeFormat("it-IT", { dateStyle: "long" });
+---
+
+<BaseLayout title={post.data.title} description={post.data.description}>
+  <article>
+    <p class="text-xs uppercase tracking-wide text-gray-500">
+      {post.data.category} · {dateFmt.format(post.data.pubDate)}
+      {post.data.draft && " · bozza"}
+    </p>
+    <h1 class="mt-1 text-3xl font-bold">{post.data.title}</h1>
+    <p class="mt-2 text-lg text-gray-600">{post.data.description}</p>
+
+    {
+      post.data.image && (
+        <img
+          src={post.data.image}
+          alt={post.data.imageAlt}
+          class="my-6 w-full rounded"
+        />
+      )
+    }
+
+    <div class="prose prose-gray mt-6 max-w-none">
+      <Content />
+    </div>
+
+    {
+      post.data.sources.length > 0 && (
+        <section class="mt-10 border-t border-gray-200 pt-4">
+          <h2 class="text-sm font-semibold text-gray-700">Fonti</h2>
+          <ul class="mt-2 list-inside list-disc text-sm">
+            {post.data.sources.map((url) => (
+              <li>
+                <a href={url} class="text-blue-700 hover:underline">
+                  {url}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <p class="mt-10">
+      <a href="/" class="text-blue-700 hover:underline">&larr; Torna alla home</a>
+    </p>
+  </article>
+</BaseLayout>

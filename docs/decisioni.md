@@ -66,3 +66,31 @@ freegamersworld perché ha fonti API strutturate e valida il riuso di _shared.
 playbox75 è deliberatamente ULTIMO e fuori dal modello news: richiede modello contenuti
 proprio (schede gioco + embed iframe) e verifica delle licenze di embedding dei giochi
 (usare cataloghi publisher autorizzati o giochi open source; mai embed non autorizzati).
+
+## 2026-07 — Monorepo con npm workspaces
+Root `package.json` con `workspaces` che elenca esplicitamente solo le cartelle con un
+proprio `package.json` (ora `sites/_shared` e `sites/tabletnexus`); NON usare il glob
+`sites/*` finché gli altri siti sono solo `.gitkeep`, perché npm fallirebbe su cartelle
+senza package. Il tema condiviso è il pacchetto `@newsforge/shared`. Aggiungere i siti
+successivi = aggiungere una riga ai workspaces. Scartato: siti standalone con import
+relativi (da rifattorizzare a ogni nuovo sito).
+
+## 2026-07 — Tailwind v4 via plugin Vite
+`@tailwindcss/vite` + `@tailwindcss/typography`, config CSS-first (`@import "tailwindcss"`
+in `global.css`), niente `tailwind.config.js`. Scartato `@astrojs/tailwind`+v3 (approccio
+legacy). Rivalutare solo se un plugin necessario non fosse compatibile con v4.
+
+## 2026-07 — Schema frontmatter in _shared, collection nel sito
+Lo schema Zod (`newsSchema`) è la fonte di verità in `sites/_shared/src/content/config.ts`
+e usa `astro/zod` (non `astro:content`, che è un modulo virtuale non importabile fuori da
+un progetto Astro). Ogni sito importa lo schema via alias `@shared` e definisce la propria
+collection in `src/content.config.ts`, perché Astro esige che la definizione stia dentro il
+progetto. `image` è opzionale ma richiede `imageAlt` (superRefine).
+
+## 2026-07 — Fixtures come sorgente della collection in fase tema
+In sviluppo del tema la collection `news` carica i `.md/.mdx` da `sites/_shared/fixtures/`
+via glob loader (`base: "../_shared/fixtures"`), così la cartella `src/content/news/` del
+sito resta intatta a mano (regola CLAUDE.md) fino a quando la pipeline vi scriverà articoli
+reali. Vite `server.fs.allow` include la root del monorepo per leggere fuori dal progetto.
+In dev NON si filtrano le bozze (le fixtures sono tutte `draft: true`); il filtro
+draft→publish arriverà con la pipeline.

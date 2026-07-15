@@ -90,7 +90,7 @@ ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
 ## Roadmap a fasi (una sessione = un obiettivo)
 
 1. ✅ Sessione 0 — scaffold monorepo (questo)
-2. ⬜ Scaffold sito pilota (tabletnexus): Astro+Tailwind+collections+fixtures, `astro dev` ok
+2. ✅ Scaffold sito pilota (tabletnexus): Astro+Tailwind+collections+fixtures, `astro dev` ok
 3. ⬜ Design system in `_shared`: layout, homepage a griglia, pagina articolo, componenti MDX
 4. ⬜ Ricerca (Pagefind), RSS, sitemap, SEO base
 5. ⬜ Pipeline v1: un articolo generato a mano da fonti reali, qualità iterata sui prompt

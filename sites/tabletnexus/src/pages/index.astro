@@ -1,0 +1,37 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// Show everything (including drafts) during theme development — fixtures are
+// all draft: true. Publishing/draft filtering comes later in the pipeline phase.
+const posts = (await getCollection("news")).sort(
+  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime(),
+);
+
+const dateFmt = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
+---
+
+<BaseLayout
+  title="Home"
+  description="Novità, confronti e prezzi dei tablet."
+>
+  <h1 class="mb-6 text-2xl font-bold">Ultimi articoli</h1>
+  <ul class="space-y-6">
+    {
+      posts.map((post) => (
+        <li class="border-b border-gray-100 pb-6">
+          <p class="text-xs uppercase tracking-wide text-gray-500">
+            {post.data.category} · {dateFmt.format(post.data.pubDate)}
+            {post.data.draft && " · bozza"}
+          </p>
+          <h2 class="mt-1 text-lg font-semibold">
+            <a href={`/news/${post.id}/`} class="hover:underline">
+              {post.data.title}
+            </a>
+          </h2>
+          <p class="mt-1 text-gray-600">{post.data.description}</p>
+        </li>
+      ))
+    }
+  </ul>
+</BaseLayout>
