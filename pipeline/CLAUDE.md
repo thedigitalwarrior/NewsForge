@@ -18,15 +18,28 @@ consuma il credito SDK mensile del piano e poi eventuale pay-as-you-go. Quindi:
 - Loggare token usati per run (il costo per articolo è una metrica di prima classe).
 - `--dry-run` non deve chiamare il modello più del necessario.
 
+## Architettura (v1)
+
+**Provider-agnostica.** Il codice non dipende da un SDK LLM specifico: c'è un'interfaccia
+`LLMProvider` (`src/providers/types.ts`) e adapter concreti. Oggi: `anthropic` (Claude via
+`@anthropic-ai/sdk`, Sonnet 5) e `mock` (offline, per test senza chiave né costi). OpenAI o un
+LLM locale = un nuovo file che implementa l'interfaccia + una riga in `src/providers/index.ts`.
+
+**La ricerca è locale, non del modello.** La pipeline recupera le fonti (`--url`), estrae il
+testo con `src/research/fetch.ts` (fetch + cheerio) e passa solo il materiale utile al modello,
+che fa solo **sintesi** verso un output strutturato (validato con Zod). Così funziona con
+qualunque backend — anche un LLM locale senza web search — e rispetta il vincolo economico.
+
 ## Struttura
 
-- `sources/<sito>.ts` — definizione fonti per sito/categoria: feed RSS, API (es. Epic/Steam
-  per giochi gratis), pagine da monitorare. Ogni fonte ha: url, tipo, categoria, peso.
-- `prompts/` — i prompt editoriali, versionati come codice. Un file per tipo di articolo
-  (news breve, recensione-aggregato, lista "giochi gratis della settimana"). I prompt
-  incorporano i vincoli di contenuto del CLAUDE.md di root (no copia, fonti citate,
-  frontmatter valido).
-- `state/` (gitignored) — registro locale delle notizie già coperte (hash/URL) per il dedup.
+- `src/providers/` — interfaccia `LLMProvider` + adapter (`anthropic`, `mock`) + registry.
+- `src/research/fetch.ts` — fetch + estrazione testo delle fonti (locale, agnostica).
+- `src/prompts/` — prompt editoriali versionati (v1: `news-brief`). Incorporano i vincoli di
+  contenuto del CLAUDE.md di root (no copia, fonti citate, no clickbait, lunghezza).
+- `src/article.ts` — schema Zod dell'output (rispecchia il frontmatter condiviso) + `body`.
+- `src/sites.ts` — siti target: categorie (in sync col config del sito) e hint di dominio.
+- `src/generate.ts` / `src/index.ts` — orchestrazione e CLI (`--site --provider --topic --url --dry-run`).
+- `state/` (gitignored) — registro dedup (hash/URL). **Fase 6**, non ancora presente.
 
 ## Flusso di un run
 

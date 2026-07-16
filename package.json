@@ -5,10 +5,12 @@
   "type": "module",
   "workspaces": [
     "sites/_shared",
-    "sites/tabletnexus"
+    "sites/tabletnexus",
+    "pipeline"
   ],
   "scripts": {
     "dev": "npm run dev --workspace sites/tabletnexus",
-    "build": "npm run build --workspace sites/tabletnexus"
+    "build": "npm run build --workspace sites/tabletnexus",
+    "generate": "npm run generate --workspace pipeline --"
   }
 }

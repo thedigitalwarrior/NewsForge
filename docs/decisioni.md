@@ -134,3 +134,30 @@ integrazione `@astrojs/sitemap` (richiede `site` in config, già presente) → `
 al build. SEO: `BaseLayout` emette canonical, Open Graph e Twitter card; `ArticleLayout` passa
 `og:image` assoluto (`new URL(image, Astro.site)`, gestisce sia URL remoti sia path locali) e
 `og:type=article`. Autodiscovery RSS via `<link rel="alternate">` nell'head.
+
+## 2026-07 — Pipeline provider-agnostica (rettifica del "Claude Agent SDK")
+I doc dicevano "Claude Agent SDK", ma i due nomi indicano prodotti diversi: il **Claude Agent
+SDK** (`@anthropic-ai/claude-agent-sdk`) è Claude Code come libreria (agent loop, filesystem,
+bash) — sovradimensionato per generare un articolo. Decisione: **nessun lock-in su un SDK**.
+Interfaccia neutra `LLMProvider` con adapter intercambiabili (Claude, in futuro OpenAI o LLM
+locale). Motivo (richiesta esplicita): poter cambiare modello/fornitore al bisogno. Primo
+backend: Anthropic via `@anthropic-ai/sdk` (Messages API), modello **Sonnet 5** (qualità vicina
+a Opus su questo task, costo/articolo molto minore; la pipeline gira su credito a consumo).
+Scartato: legarsi all'Agent SDK o a un unico vendor.
+
+## 2026-07 — Ricerca locale, il modello fa solo sintesi
+Corollario del punto sopra: la ricerca/fetch delle fonti è compito della **pipeline** (fetch +
+estrazione testo con cheerio in `research/fetch.ts`), non un tool proprietario del modello
+(es. `web_search` di Claude). Così: (a) funziona con qualunque backend, anche un LLM locale
+senza web search; (b) rispetta il vincolo economico di `pipeline/CLAUDE.md` (passare al modello
+solo testo utile, una singola chiamata strutturata). Il modello riceve il materiale già
+ripulito e produce l'articolo strutturato, validato con Zod (schema che rispecchia il
+frontmatter condiviso). Output sempre `draft: true`.
+
+## 2026-07 — Provider `mock` per test offline
+Oltre all'adapter Anthropic esiste un provider `mock` che restituisce una bozza deterministica
+senza chiamare alcun modello. Permette di verificare l'intera catena (fetch → sintesi →
+validazione → scrittura → render Astro) senza `ANTHROPIC_API_KEY` né costi, e serve da modalità
+di sviluppo offline. La collection del sito in fase tema legge ancora dalle fixtures: la
+generazione scrive in `src/content/news/`, ma il passaggio a leggere gli articoli reali
+(draft→publish) è deciso in Fase 6.

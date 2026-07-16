@@ -41,7 +41,9 @@ Markdown/MDX + frontmatter; l'aspetto è deciso interamente dal tema in `sites/_
   MDX per articoli ricchi. Zero JS client-side salvo isole esplicite.
 - **Ricerca:** Pagefind, indicizzazione post-build. NON Meilisearch (rivalutare solo a
   migliaia di articoli/esigenze di ricerca istantanea).
-- **Pipeline:** Claude Agent SDK (TypeScript) + web search. Gira via cron/systemd timer.
+- **Pipeline:** TypeScript, astrazione `LLMProvider` neutra (Claude/OpenAI/LLM locale);
+  primo backend Anthropic via `@anthropic-ai/sdk` (Sonnet 5). La ricerca fonti è locale
+  (fetch + estrazione), il modello fa solo sintesi strutturata. Gira via cron/systemd timer.
 - **Web server:** Caddy (TLS automatico, un virtual host per dominio).
 - **Hosting:** server dedicato SeFlow QA-2124.2 (Xeon E-2124, 64GB RAM, 2x480GB SSD),
   Proxmox VE su ZFS mirror (controller PERC in modalità HBA). Siti in una VM Debian 12
@@ -56,8 +58,9 @@ npm run dev            # astro dev con hot reload
 npm run build          # astro build + pagefind --site dist
 
 # pipeline (da pipeline/)
-npm run generate -- --site tabletnexus --dry-run   # genera 1 articolo senza pubblicare
-npm run generate -- --site tabletnexus             # genera e salva in sites/tabletnexus/src/content/news/
+npm run generate -- --site tabletnexus --provider mock --dry-run     # prova offline, senza chiave né costi
+npm run generate -- --site tabletnexus --topic "..." --url <fonte>   # genera con Claude (default) da fonti reali
+npm run generate -- --site tabletnexus                               # salva un draft in sites/tabletnexus/src/content/news/
 
 # infra (da infra/)
 ansible-playbook -i inventory/local.yml site.yml       # provisioning VM locale
@@ -93,7 +96,7 @@ ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
 2. ✅ Scaffold sito pilota (tabletnexus): Astro+Tailwind+collections+fixtures, `astro dev` ok
 3. ✅ Design system in `_shared`: layout, homepage a griglia, pagina articolo, componenti MDX
 4. ✅ Ricerca (Pagefind), RSS, sitemap, SEO base
-5. ⬜ Pipeline v1: un articolo generato a mano da fonti reali, qualità iterata sui prompt
+5. ✅ Pipeline v1: un articolo generato da fonti reali, qualità iterata sui prompt
 6. ⬜ Pipeline v2: scheduling, dedup notizie, coda di revisione (draft → publish)
 7. ⬜ Infra: playbook contro VM locale Debian 12, poi multi-sito
 8. ⬜ Secondo sito news (freegamersworld): deve costare ore, non giorni
