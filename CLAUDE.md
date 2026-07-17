@@ -61,6 +61,8 @@ npm run build          # astro build + pagefind --site dist
 npm run generate -- --site tabletnexus --provider mock --dry-run     # prova offline, senza chiave né costi
 npm run generate -- --site tabletnexus --topic "..." --url <fonte>   # genera con Claude (default) da fonti reali
 npm run generate -- --site tabletnexus                               # salva un draft in sites/tabletnexus/src/content/news/
+npm run review   -- --site tabletnexus                               # coda di revisione: pubblicati vs bozze
+npm run publish  -- --site tabletnexus --slug <slug>                 # pubblica una bozza (draft: true -> false); --all per tutte
 
 # infra (da infra/)
 ansible-playbook -i inventory/local.yml site.yml       # provisioning VM locale
@@ -80,8 +82,11 @@ ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
 - **Niente hardcoding di ambiente:** IP, path, domini, email vivono nelle variabili Ansible
   (`infra/inventory/`) o in `.env` (mai committato).
 - **Commit piccoli e frequenti**, messaggi in inglese, imperativi ("Add category badge").
-- Non toccare `sites/*/src/content/news/` a mano durante lo sviluppo del tema: usare i
-  fixture in `sites/_shared/fixtures/`.
+- **Contenuti dei siti:** `sites/<dominio>/src/content/news/` contiene gli articoli reali
+  (scritti dalla pipeline, poi pubblicati). Le bozze (`draft: true`) sono la coda di revisione:
+  visibili in `astro dev` per l'anteprima, nascoste in produzione (`getVisibleNews` in
+  `_shared`). La pubblicazione passa da `npm run publish` (o modifica esplicita del flag),
+  mai un aggiornamento silenzioso. (Le vecchie `_shared/fixtures/` sono state ritirate in fase 6.)
 
 ## Vincoli di contenuto (IMPORTANTI, valgono anche per i prompt della pipeline)
 
@@ -97,7 +102,7 @@ ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
 3. ✅ Design system in `_shared`: layout, homepage a griglia, pagina articolo, componenti MDX
 4. ✅ Ricerca (Pagefind), RSS, sitemap, SEO base
 5. ✅ Pipeline v1: un articolo generato da fonti reali, qualità iterata sui prompt
-6. ⬜ Pipeline v2: scheduling, dedup notizie, coda di revisione (draft → publish)
+6. ✅ Pipeline v2: dedup notizie, coda di revisione (draft → publish). Scheduling (timer) → fase 7.
 7. ⬜ Infra: playbook contro VM locale Debian 12, poi multi-sito
 8. ⬜ Secondo sito news (freegamersworld): deve costare ore, non giorni
 9. ⬜ Rollout siti news restanti (roboticfoundry, fasterthanspace) + buildyournas (variante guide)

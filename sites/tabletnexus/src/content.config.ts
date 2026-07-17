@@ -3,15 +3,15 @@ import { glob } from "astro/loaders";
 import { newsSchema } from "@shared/content/config";
 
 /**
- * During theme development the `news` collection is fed by the shared fixtures
- * (sites/_shared/fixtures), NOT by this site's own src/content/news/ — that
- * folder stays untouched by hand until the pipeline writes real articles.
- * See the "Convenzioni" section of the root CLAUDE.md.
+ * The `news` collection reads this site's real articles, written by the pipeline
+ * (or migrated seed content) as draft-first Markdown/MDX. Visibility (which
+ * drafts render) is decided by getVisibleNews() in @shared/lib/news — drafts show
+ * in dev for review preview and are held back in production builds.
  */
 const news = defineCollection({
   loader: glob({
     pattern: "**/*.{md,mdx}",
-    base: "../_shared/fixtures",
+    base: "./src/content/news",
   }),
   schema: newsSchema,
 });

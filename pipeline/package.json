@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "tsx src/index.ts",
+    "generate": "tsx src/index.ts generate",
+    "review": "tsx src/index.ts review",
+    "publish": "tsx src/index.ts publish",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

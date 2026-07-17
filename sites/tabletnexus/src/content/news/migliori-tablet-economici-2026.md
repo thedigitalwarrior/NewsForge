@@ -6,7 +6,7 @@ category: "Guide"
 sources:
   - "https://www.gsmarena.com/"
   - "https://www.notebookcheck.net/"
-draft: true
+draft: false
 ---
 
 Spendere poco non significa comprare male, se si sa a cosa rinunciare. Ecco come orientarsi

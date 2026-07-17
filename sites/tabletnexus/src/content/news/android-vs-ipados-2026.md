@@ -6,7 +6,7 @@ category: "Confronti"
 sources:
   - "https://developer.android.com/"
   - "https://www.apple.com/ipados/"
-draft: true
+draft: false
 ---
 
 La scelta tra un tablet **Android** e un **iPad** non si decide più sulla scheda tecnica:

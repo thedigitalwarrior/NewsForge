@@ -38,17 +38,21 @@ qualunque backend — anche un LLM locale senza web search — e rispetta il vin
   contenuto del CLAUDE.md di root (no copia, fonti citate, no clickbait, lunghezza).
 - `src/article.ts` — schema Zod dell'output (rispecchia il frontmatter condiviso) + `body`.
 - `src/sites.ts` — siti target: categorie (in sync col config del sito) e hint di dominio.
-- `src/generate.ts` / `src/index.ts` — orchestrazione e CLI (`--site --provider --topic --url --dry-run`).
-- `state/` (gitignored) — registro dedup (hash/URL). **Fase 6**, non ancora presente.
+- `src/generate.ts` / `src/index.ts` — orchestrazione e CLI (comandi `generate`/`review`/`publish`).
+- `src/state.ts` + `state/<sito>.json` (gitignored) — registro dedup (slug + URL fonti coperte).
+- `src/publish.ts` — coda di revisione: `review` (elenca stato) e `publish` (draft:true→false).
 
-## Flusso di un run
+## Flusso di un run (`generate`)
 
-1. Fetch fonti → normalizzazione (titolo, testo, url, data)
-2. Dedup contro `state/` e contro gli articoli già presenti nel sito
-3. Selezione candidati (regole locali: novità, rilevanza per categoria)
-4. Per ogni candidato: chiamata Agent SDK con prompt editoriale + materiale fonte
-5. Validazione output: frontmatter contro lo schema Zod condiviso; se invalido, scarto e log
-6. Scrittura file `.md`/`.mdx` con `draft: true` + aggiornamento `state/`
+1. Dedup pre-check contro `state/`: se le fonti sono già coperte, salta prima di spendere token.
+2. Fetch fonti → estrazione testo locale (titolo, testo, url).
+3. Chiamata al provider (`LLMProvider`) con prompt editoriale + materiale → output strutturato.
+4. Validazione output contro lo schema Zod condiviso; se invalido, errore e stop.
+5. Dedup post: se lo slug esiste già, non scrive (usa `--force` per rigenerare).
+6. Scrittura file `.md` con `draft: true` + aggiornamento `state/`.
+
+Il dedup rende le run **idempotenti**, quindi sicure da schedulare (il timer systemd è fase 7,
+infra). La pubblicazione (`publish`) è un passo umano esplicito: mai automatica.
 
 La build e il deploy NON sono compiti della pipeline: li orchestrano cron/systemd + hook
 (vedi `infra/`). La pipeline produce solo file di contenuto.

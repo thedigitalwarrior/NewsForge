@@ -161,3 +161,26 @@ validazione → scrittura → render Astro) senza `ANTHROPIC_API_KEY` né costi,
 di sviluppo offline. La collection del sito in fase tema legge ancora dalle fixtures: la
 generazione scrive in `src/content/news/`, ma il passaggio a leggere gli articoli reali
 (draft→publish) è deciso in Fase 6.
+
+## 2026-07 — Contenuti reali + visibilità bozze (Fase 6)
+Le `_shared/fixtures/` (fase 2-4, sviluppo tema) sono state **migrate** negli articoli reali
+del sito in `sites/tabletnexus/src/content/news/` e la collection ora legge quella cartella.
+La visibilità è centralizzata in `getVisibleNews()` (`_shared/lib/news.ts`): le bozze
+(`draft: true`) sono **mostrate in dev** (anteprima per il revisore) e **nascoste in
+produzione** via `import.meta.env.PROD`. Anche `getStaticPaths` della route articolo usa
+`getVisibleNews`, così in produzione le bozze non generano pagine né entrano in sitemap/RSS.
+Scartato: filtro bozze duplicato nelle singole pagine (drift garantito).
+
+## 2026-07 — Dedup idempotente (Fase 6)
+`pipeline/state/<sito>.json` (gitignored) registra gli articoli già coperti (slug + URL fonti
+normalizzati). `generate` fa un pre-check prima di chiamare il modello (skip se le fonti sono
+già coperte → zero token sprecati) e un post-check sullo slug prima di scrivere. `--force`
+bypassa. Motivo: rendere le run ripetibili/schedulabili senza duplicati. Il timer systemd vero
+è fase 7 (infra); qui si costruisce solo la base idempotente.
+
+## 2026-07 — Coda di revisione draft→publish (Fase 6)
+Comandi pipeline `review` (elenca articoli con stato pubblicato/bozza) e `publish` (porta
+`draft: true`→`false` con una sostituzione chirurgica sulla riga del frontmatter, `--slug` o
+`--all`). La pubblicazione resta una **decisione umana esplicita**: la pipeline non pubblica
+mai da sola. Scartato: pubblicazione automatica o spostamento file tra cartelle (il flag nel
+frontmatter è più semplice e reversibile).

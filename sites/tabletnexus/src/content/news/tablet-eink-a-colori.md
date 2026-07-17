@@ -7,7 +7,7 @@ image: "https://picsum.photos/seed/einktablet/1200/630"
 imageAlt: "Primo piano di uno schermo a inchiostro elettronico con testo"
 sources:
   - "https://www.eink.com/"
-draft: true
+draft: false
 ---
 
 I tablet **e-ink a colori** sono passati da curiosità di nicchia a categoria con più

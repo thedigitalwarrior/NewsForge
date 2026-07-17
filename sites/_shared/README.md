@@ -20,9 +20,11 @@ pacchetto via alias `@shared/*` e forniscono solo branding, categorie e contenut
   in `ArticleLayout`, così la pipeline può usarli senza `import` espliciti nell'MDX.
 - `src/lib/utils.ts` — utility condivise (es. `slugify`).
 - `src/lib/news.ts` — `getVisibleNews()`, unico punto che decide quali articoli sono visibili
-  (home, categorie, RSS, sitemap). Qui si attiverà il filtro bozze con la pipeline.
-- `fixtures/` — articoli finti (`.md`/`.mdx`) per lo sviluppo del tema. La collection dei
-  siti li carica al posto di `src/content/news/` (che resta intatto fino alla pipeline).
+  (home, categorie, route articolo, RSS, sitemap). Filtra le bozze in produzione, le mostra in
+  dev (anteprima per la coda di revisione).
+
+Nota: le vecchie `fixtures/` sono state migrate nei contenuti reali dei siti (Fase 6). Ogni
+sito ora legge i propri articoli da `sites/<dominio>/src/content/news/`.
 
 ## Come un sito consuma il tema
 
