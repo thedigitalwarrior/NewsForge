@@ -2,6 +2,15 @@
 @plugin "@tailwindcss/typography";
 
 /*
+ * Explicit content sources. This CSS lives in the shared theme, which sits
+ * outside each site's project root, so Tailwind's automatic detection misses it
+ * (utilities used only in shared components would never be generated). Paths are
+ * relative to this file (sites/_shared/src/styles/).
+ */
+@source "../";              /* sites/_shared/src — shared layouts & components */
+@source "../../../*/src";   /* sites/<dominio>/src — each site's pages & config */
+
+/*
  * Design tokens shared by every site in the network. Brand accent is a runtime
  * CSS variable (`--brand` / `--brand-dark`) set per-site by BaseLayout from the
  * site config, so the shared components stay brand-agnostic. Tailwind utilities
