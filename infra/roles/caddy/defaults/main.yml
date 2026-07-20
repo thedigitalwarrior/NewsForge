@@ -1,0 +1,7 @@
+---
+# Repository ufficiale Caddy (Cloudsmith).
+caddy_gpg_url: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+caddy_repo: "https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main"
+
+# Elenco siti (dominio + docroot). Definito per-ambiente in group_vars.
+sites: []

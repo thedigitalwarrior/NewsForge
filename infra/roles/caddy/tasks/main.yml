@@ -1,0 +1,74 @@
+---
+# Ruolo caddy: web server con TLS automatico (in prod), un virtual host per dominio.
+
+- name: Installa i prerequisiti per il repository Caddy
+  ansible.builtin.apt:
+    name:
+      - debian-keyring
+      - debian-archive-keyring
+      - apt-transport-https
+      - curl
+      - gnupg
+    state: present
+
+- name: Crea la cartella dei keyring apt
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Scarica la chiave GPG di Caddy
+  ansible.builtin.get_url:
+    url: "{{ caddy_gpg_url }}"
+    dest: /etc/apt/keyrings/caddy-stable.asc
+    mode: "0644"
+
+- name: Configura il repository Caddy
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/caddy-stable.asc] {{ caddy_repo }}"
+    filename: caddy-stable
+    state: present
+
+- name: Installa Caddy
+  ansible.builtin.apt:
+    name: caddy
+    state: present
+    update_cache: true
+
+- name: Crea le docroot dei siti
+  ansible.builtin.file:
+    path: "{{ item.root }}"
+    state: directory
+    owner: caddy
+    group: caddy
+    mode: "0755"
+  loop: "{{ sites }}"
+
+- name: Placeholder index.html (finché il deploy non popola la docroot)
+  ansible.builtin.copy:
+    dest: "{{ item.root }}/index.html"
+    content: "<h1>{{ item.address }}</h1>\n<p>Caddy attivo sulla VM. In attesa del deploy Astro.</p>\n"
+    owner: caddy
+    group: caddy
+    mode: "0644"
+    force: false
+  loop: "{{ sites }}"
+
+- name: Genera il Caddyfile dalla lista siti
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload caddy
+
+- name: Valida il Caddyfile
+  ansible.builtin.command: caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+  changed_when: false
+
+- name: Abilita e avvia Caddy
+  ansible.builtin.systemd:
+    name: caddy
+    enabled: true
+    state: started

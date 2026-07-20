@@ -1,0 +1,9 @@
+{# Generato da Ansible (ruolo caddy). Non modificare a mano sul server. #}
+{% for site in sites %}
+{{ site.address }} {
+	root * {{ site.root }}
+	encode gzip
+	file_server
+}
+
+{% endfor %}
