@@ -1,0 +1,3 @@
+# Variabili valide per tutti gli ambienti. Valori specifici (IP, domini, email)
+# vanno nell'inventory o in group_vars per-ambiente, mai hardcoded nei ruoli.
+timezone: Europe/Rome

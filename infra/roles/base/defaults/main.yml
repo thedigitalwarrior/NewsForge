@@ -1,0 +1,11 @@
+---
+# Fallback se non definito in group_vars/inventory.
+timezone: Europe/Rome
+
+# Pacchetti di base presenti su ogni macchina della rete.
+base_packages:
+  - curl
+  - git
+  - ca-certificates
+  - rsync
+  - unzip

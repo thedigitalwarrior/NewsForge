@@ -1,0 +1,49 @@
+---
+# Ruolo base: prerequisiti comuni a ogni macchina della rete NewsForge.
+# Versione minima e SENZA rischio di lock-out (niente sshd/firewall qui: quelli
+# arriveranno in un ruolo dedicato, con la porta SSH esplicitamente consentita).
+
+- name: Aggiorna la cache apt
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Installa i pacchetti di base
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    state: present
+
+- name: Rileva il timezone corrente
+  ansible.builtin.command: timedatectl show -p Timezone --value
+  register: current_tz
+  changed_when: false
+
+- name: Imposta il timezone
+  ansible.builtin.command: "timedatectl set-timezone {{ timezone }}"
+  when: current_tz.stdout != timezone
+
+- name: Assicura systemd-timesyncd (sincronizzazione oraria)
+  ansible.builtin.apt:
+    name: systemd-timesyncd
+    state: present
+
+- name: Abilita e avvia systemd-timesyncd
+  ansible.builtin.systemd:
+    name: systemd-timesyncd
+    enabled: true
+    state: started
+
+- name: Installa unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Abilita gli aggiornamenti automatici di sicurezza
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    owner: root
+    group: root
+    mode: "0644"

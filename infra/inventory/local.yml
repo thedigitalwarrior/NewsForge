@@ -1,0 +1,10 @@
+# Inventory dell'ambiente locale (VM Debian 12 di prova su VirtualBox).
+# La produzione avrà un inventory/prod.yml gemello, stessi ruoli, valori diversi.
+all:
+  children:
+    local:
+      hosts:
+        newsforge-local:
+          ansible_host: 192.168.1.4
+      vars:
+        ansible_user: einaudi

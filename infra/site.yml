@@ -1,0 +1,8 @@
+---
+# Playbook principale. Per ora applica solo il ruolo base; crescerà con
+# node -> caddy -> deploy -> pipeline man mano che li verifichiamo su `local`.
+- name: Provisioning della rete NewsForge
+  hosts: local
+  become: true
+  roles:
+    - base
