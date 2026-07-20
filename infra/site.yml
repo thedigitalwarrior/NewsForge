@@ -8,3 +8,4 @@
     - base
     - node
     - caddy
+    - deploy

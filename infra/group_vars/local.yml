@@ -4,6 +4,10 @@
 
 # Siti serviti da Caddy. Per il locale usiamo domini .test su HTTP:
 # lo schema http:// disattiva il TLS automatico (niente Let's Encrypt).
+#   slug    -> cartella sorgente sites/<slug> (workspace da buildare)
+#   address -> indirizzo Caddy
+#   root    -> docroot servita
 sites:
-  - address: "http://tabletnexus.test"
+  - slug: tabletnexus
+    address: "http://tabletnexus.test"
     root: /var/www/tabletnexus

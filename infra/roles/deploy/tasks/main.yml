@@ -1,0 +1,48 @@
+---
+# Ruolo deploy: GitHub -> build sul server -> docroot Caddy.
+# git/npm girano come utente di connessione (ha la deploy key): become: false.
+# La scrittura in /var/www usa become (ereditato dal play).
+
+- name: Assicura la cartella sorgente (di proprietà dell'utente di deploy)
+  ansible.builtin.file:
+    path: "{{ deploy_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Clona/aggiorna il repo da GitHub
+  become: false
+  ansible.builtin.git:
+    repo: "{{ deploy_repo }}"
+    dest: "{{ deploy_dir }}"
+    version: "{{ deploy_branch }}"
+  register: repo
+
+- name: Installa le dipendenze del monorepo (npm ci)
+  become: false
+  ansible.builtin.command:
+    cmd: npm ci
+    chdir: "{{ deploy_dir }}"
+  when: repo.changed or deploy_force
+  changed_when: true
+
+- name: Build dei siti (Astro + Pagefind)
+  become: false
+  ansible.builtin.command:
+    cmd: "npm run build --workspace sites/{{ item.slug }}"
+    chdir: "{{ deploy_dir }}"
+  loop: "{{ sites }}"
+  loop_control:
+    label: "{{ item.slug }}"
+  when: repo.changed or deploy_force
+  changed_when: true
+
+- name: Pubblica dist nella docroot
+  ansible.builtin.command:
+    cmd: "rsync -a --delete {{ deploy_dir }}/sites/{{ item.slug }}/dist/ {{ item.root }}/"
+  loop: "{{ sites }}"
+  loop_control:
+    label: "{{ item.slug }}"
+  when: repo.changed or deploy_force
+  changed_when: true

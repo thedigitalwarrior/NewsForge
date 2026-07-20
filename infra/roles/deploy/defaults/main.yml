@@ -1,0 +1,10 @@
+---
+# Sorgente del codice: il repo GitHub (privato, letto via deploy key sulla VM).
+deploy_repo: "git@github.com:thedigitalwarrior/NewsForge.git"
+deploy_branch: master
+
+# Dove la VM clona il monorepo e builda.
+deploy_dir: /opt/newsforge
+
+# Forza build + pubblicazione anche senza nuovi commit.
+deploy_force: false
