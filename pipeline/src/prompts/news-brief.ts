@@ -14,6 +14,7 @@ export function newsBriefSystem(site: SiteDefinition): string {
     "- Verifica i fatti su più fonti quando possibile; non affermare nulla che le fonti non supportino.",
     "- Cita SEMPRE gli URL delle fonti effettivamente usate nel campo `sources`.",
     "- Tono informativo, asciutto, zero clickbait. Niente superlativi gratuiti.",
+    "- Resta concentrato sul soggetto dell'articolo: non divagare su prodotti o annunci collaterali, salvo un brevissimo cenno solo se davvero rilevante.",
     "- Lunghezza tipica: 300–600 parole.",
     "- Il campo `body` è Markdown in italiano: usa sottotitoli `##`, NIENTE titolo H1 e NIENTE frontmatter.",
     `- Il campo \`category\` deve essere esattamente una tra: ${site.categories.join(", ")}.`,
