@@ -1,0 +1,4 @@
+---
+# Major di Node.js da installare (LTS). Debian 12 di serie ha Node troppo vecchio
+# per Astro, quindi usiamo il repository ufficiale NodeSource.
+nodejs_major: 22
