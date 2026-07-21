@@ -39,7 +39,10 @@ qualunque backend — anche un LLM locale senza web search — e rispetta il vin
 - `src/article.ts` — schema Zod dell'output (rispecchia il frontmatter condiviso) + `body`.
 - `src/sites.ts` — siti target: categorie (in sync col config del sito) e hint di dominio.
 - `src/generate.ts` / `src/index.ts` — orchestrazione e CLI (comandi `generate`/`review`/`publish`).
-- `src/state.ts` + `state/<sito>.json` (gitignored) — registro dedup (slug + URL fonti coperte).
+- `src/state.ts` + `state/<sito>.json` (gitignored) — indice semantico del già-coperto
+  (embedding "firma evento" + titolo + URL). Dedup a cascata in `src/dedup.ts`.
+- `src/embeddings/` — embedder locale (transformers.js, CPU, offline) + cosine/clustering.
+- `src/signature.ts` — costruisce la firma evento (titolo + lead) da embeddare.
 - `src/publish.ts` — coda di revisione: `review` (elenca stato) e `publish` (draft:true→false).
 
 ## Flusso di un run (`generate`)

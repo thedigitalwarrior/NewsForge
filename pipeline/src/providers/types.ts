@@ -31,6 +31,18 @@ export interface GenerationResult {
   usage: Usage;
 }
 
+/** A news item reduced to title + short summary, for same-event judging. */
+export interface EventSummary {
+  title: string;
+  summary: string;
+}
+
+export interface JudgeResult {
+  sameEvent: boolean;
+  reason: string;
+  usage: Usage;
+}
+
 /**
  * Provider-neutral synthesis step. The pipeline does the research (fetch +
  * extraction) itself and passes clean material here, so any backend — Claude,
@@ -39,4 +51,10 @@ export interface GenerationResult {
 export interface LLMProvider {
   readonly name: string;
   generate(req: GenerationRequest): Promise<GenerationResult>;
+  /**
+   * Optional: decide whether two news items describe the same specific event.
+   * Used only for the dedup gray zone. If a provider doesn't implement it, the
+   * gray zone is treated conservatively (as a duplicate).
+   */
+  judgeSameEvent?(a: EventSummary, b: EventSummary): Promise<JudgeResult>;
 }

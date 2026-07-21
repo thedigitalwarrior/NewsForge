@@ -178,6 +178,20 @@ già coperte → zero token sprecati) e un post-check sullo slug prima di scrive
 bypassa. Motivo: rendere le run ripetibili/schedulabili senza duplicati. Il timer systemd vero
 è fase 7 (infra); qui si costruisce solo la base idempotente.
 
+## 2026-07 — Dedup semantico con embedding locali (Pipeline v3)
+Il dedup della fase 6 (URL + slug esatti) è ingenuo: non riconosce la stessa notizia da fonti
+diverse né la ripresa in ritardo. La v3 aggiunge una **cascata**: (1) URL esatto → scarta;
+(2) similarità semantica sugli **embedding** della "firma evento" (titolo + lead) contro
+l'indice del già-coperto → `score ≥ 0.86` doppione, `< 0.72` nuova; (3) fascia grigia →
+**giudice LLM** ("stesso evento specifico? non basta lo stesso prodotto"). Se il giudice non
+c'è (es. provider `mock`), la fascia grigia è **conservativa = doppione**. Gli embedding sono
+**locali** (transformers.js, modello `paraphrase-multilingual-MiniLM-L12-v2` su CPU, costo zero,
+offline) — coerente con l'astrazione provider e la filosofia locale. `state/` diventa un indice
+semantico (embedding + titolo + summary per voce); confronto in memoria, niente DB vettoriale a
+questa scala. Bonus: gli stessi embedding **clusterizzano** candidate multi-fonte → un articolo
+con più fonti (migliora anche la qualità). Soglie iniziali 0.86/0.72, da tarare sui casi reali.
+Limite noto: distinguere "stesso prodotto, evento diverso" dipende dal giudice.
+
 ## 2026-07 — Coda di revisione draft→publish (Fase 6)
 Comandi pipeline `review` (elenca articoli con stato pubblicato/bozza) e `publish` (porta
 `draft: true`→`false` con una sostituzione chirurgica sulla riga del frontmatter, `--slug` o

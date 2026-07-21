@@ -1,7 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { z } from "zod/v4";
 import type { ArticleDraft } from "../article.js";
-import type { GenerationRequest, GenerationResult, LLMProvider } from "./types.js";
+import type {
+  EventSummary,
+  GenerationRequest,
+  GenerationResult,
+  JudgeResult,
+  LLMProvider,
+} from "./types.js";
 
 export interface AnthropicProviderOptions {
   apiKey?: string;
@@ -49,6 +56,41 @@ export function createAnthropicProvider(
 
       return {
         draft,
+        usage: {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        },
+      };
+    },
+
+    async judgeSameEvent(a: EventSummary, b: EventSummary): Promise<JudgeResult> {
+      const schema = z.object({
+        sameEvent: z
+          .boolean()
+          .describe("true se A e B trattano lo stesso evento/annuncio specifico"),
+        reason: z.string().describe("breve motivazione"),
+      });
+      const response = await client.messages.parse({
+        model,
+        max_tokens: 500,
+        system:
+          "Sei un esperto di deduplicazione di notizie. Date due notizie (titolo + sommario), stabilisci se trattano lo STESSO evento o annuncio specifico. NON basta lo stesso prodotto, la stessa azienda o lo stesso tema. Esempio: 'iPad Pro M5: recensione' e 'iPad Pro M5: calo di prezzo' riguardano lo stesso prodotto ma eventi diversi → sameEvent = false.",
+        output_config: { format: zodOutputFormat(schema), effort: "low" },
+        messages: [
+          {
+            role: "user",
+            content: `NOTIZIA A\nTitolo: ${a.title}\nSommario: ${a.summary}\n\nNOTIZIA B\nTitolo: ${b.title}\nSommario: ${b.summary}`,
+          },
+        ],
+      });
+      const out = response.parsed_output as {
+        sameEvent: boolean;
+        reason: string;
+      } | null;
+      if (!out) throw new Error("Giudice same-event: output non valido.");
+      return {
+        sameEvent: out.sameEvent,
+        reason: out.reason,
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,

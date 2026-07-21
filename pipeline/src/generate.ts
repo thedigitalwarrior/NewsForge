@@ -11,6 +11,9 @@ import { slugify } from "./lib/slugify.js";
 import { siteNewsDir } from "./lib/paths.js";
 import { logUsage } from "./lib/usage.js";
 import { isCovered, loadState, normalizeUrl, saveState } from "./state.js";
+import { getEmbedder } from "./embeddings/index.js";
+import { buildSignature, type EventSignature } from "./signature.js";
+import { classifyCandidate } from "./dedup.js";
 
 export interface GenerateOptions {
   site: string;
@@ -18,7 +21,7 @@ export interface GenerateOptions {
   topic?: string;
   urls: string[];
   dryRun: boolean;
-  /** Regenerate even if the sources/slug were already covered. */
+  /** Regenerate even if the sources/slug/event were already covered. */
   force: boolean;
 }
 
@@ -28,7 +31,7 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   const state = await loadState(site.slug);
   const normUrls = opts.urls.map(normalizeUrl);
 
-  // Dedup pre-check: skip before spending any tokens if these sources were used.
+  // Cheap pre-check: exact source URLs already used (skip before any work).
   if (!opts.force && normUrls.length > 0 && isCovered(state, { urls: normUrls })) {
     console.log(
       "⏭  Fonti già coperte in una run precedente. Usa --force per rigenerare.",
@@ -42,6 +45,36 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   }
 
   const provider = getProvider(opts.provider);
+
+  // Semantic dedup: build the event signature, embed it, compare to the covered
+  // index. Catches the same story from a different source/title/time.
+  let signature: EventSignature | undefined;
+  let candidateEmbedding: number[] | undefined;
+  const sigSource = sources.length
+    ? { title: sources[0].title, body: sources[0].text }
+    : opts.topic
+      ? { title: opts.topic, body: opts.topic }
+      : undefined;
+
+  if (sigSource) {
+    signature = buildSignature(sigSource.title, sigSource.body);
+    candidateEmbedding = (await getEmbedder().embed([signature.text]))[0];
+    if (!opts.force) {
+      const verdict = await classifyCandidate(
+        { signature, embedding: candidateEmbedding },
+        state,
+        provider,
+      );
+      if (verdict.kind === "duplicate") {
+        console.log(
+          `⏭  Doppione semantico (score ${verdict.score.toFixed(3)}, via ${verdict.via}) — combacia con: "${verdict.match.title ?? verdict.match.slug}". Usa --force per generare comunque.`,
+        );
+        return;
+      }
+      console.log(`  ↳ dedup: nuova notizia (score ${verdict.score.toFixed(3)})`);
+    }
+  }
+
   console.log(
     `▶  Genero un articolo per ${site.name} con provider "${opts.provider}"${opts.dryRun ? " (dry-run)" : ""}…`,
   );
@@ -80,6 +113,9 @@ export async function generate(opts: GenerateOptions): Promise<void> {
 
   state.covered.push({
     slug,
+    title: article.title,
+    summary: signature?.summary,
+    embedding: candidateEmbedding,
     urls: normUrls,
     topic: opts.topic,
     at: new Date().toISOString(),

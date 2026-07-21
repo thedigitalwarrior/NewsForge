@@ -9,14 +9,23 @@ const stateDir = path.resolve(here, "..", "state");
 
 export interface CoveredEntry {
   slug: string;
+  /** Article title (readable, used in logs and by the judge). */
+  title?: string;
+  /** Source lead used to build the event signature (used by the judge). */
+  summary?: string;
+  /** Event-signature embedding (semantic dedup). Absent on legacy entries. */
+  embedding?: number[];
   urls: string[];
   topic?: string;
   at: string;
 }
 
 export interface SiteState {
+  version?: number;
   covered: CoveredEntry[];
 }
+
+export const STATE_VERSION = 3;
 
 function stateFile(site: string): string {
   return path.join(stateDir, `${site}.json`);
@@ -24,18 +33,19 @@ function stateFile(site: string): string {
 
 export async function loadState(site: string): Promise<SiteState> {
   const file = stateFile(site);
-  if (!existsSync(file)) return { covered: [] };
+  if (!existsSync(file)) return { version: STATE_VERSION, covered: [] };
   try {
     const parsed = JSON.parse(await readFile(file, "utf8")) as SiteState;
-    return { covered: parsed.covered ?? [] };
+    return { version: parsed.version, covered: parsed.covered ?? [] };
   } catch {
-    return { covered: [] };
+    return { version: STATE_VERSION, covered: [] };
   }
 }
 
 export async function saveState(site: string, state: SiteState): Promise<void> {
   await mkdir(stateDir, { recursive: true });
-  await writeFile(stateFile(site), JSON.stringify(state, null, 2) + "\n", "utf8");
+  const payload: SiteState = { version: STATE_VERSION, covered: state.covered };
+  await writeFile(stateFile(site), JSON.stringify(payload, null, 2) + "\n", "utf8");
 }
 
 /** Normalize a URL for comparison (drop hash, trim). */
