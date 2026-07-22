@@ -16,7 +16,7 @@ export const site: SiteConfig = {
     accentDark: "#0369a1",
   },
   categories: [
-    { key: "news", labels: { en: "News", it: "Novità" } },
+    { key: "news", labels: { en: "News", it: "News" } },
     { key: "comparisons", labels: { en: "Comparisons", it: "Confronti" } },
     { key: "prices", labels: { en: "Prices", it: "Prezzi" } },
     { key: "guides", labels: { en: "Guides", it: "Guide" } },

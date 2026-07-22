@@ -17,6 +17,9 @@
     repo: "{{ deploy_repo }}"
     dest: "{{ deploy_dir }}"
     version: "{{ deploy_branch }}"
+    # Il clone di deploy rispecchia sempre il remoto: eventuali modifiche locali
+    # (es. package-lock.json riscritto da un npm install manuale) vengono scartate.
+    force: true
   register: repo
 
 - name: Installa le dipendenze del monorepo (npm ci)
