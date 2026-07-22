@@ -1,20 +1,23 @@
 ---
-import { slugify } from "../lib/utils";
+import { categoryUrl } from "../i18n/routes";
+import type { Locale } from "../i18n/config";
 
 interface Props {
-  category: string;
+  lang: Locale;
+  categoryKey: string;
+  label: string;
   class?: string;
 }
 
-const { category, class: className } = Astro.props;
+const { lang, categoryKey, label, class: className } = Astro.props;
 ---
 
 <a
-  href={`/categoria/${slugify(category)}/`}
+  href={categoryUrl(lang, categoryKey)}
   class:list={[
     "inline-block rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-dark transition hover:bg-brand/20",
     className,
   ]}
 >
-  {category}
+  {label}
 </a>

@@ -1,29 +1,33 @@
+import type { Locale } from "../i18n/config";
+
 /**
- * Per-site configuration contract. Each site provides one object of this shape
- * (see e.g. sites/tabletnexus/src/config/site.ts); the shared theme reads it and
- * stays free of any site-specific branding.
+ * Per-site configuration. Localized fields carry one string per locale; the
+ * shared theme reads them by the current language.
  */
 export interface SiteCategory {
-  /** URL slug, e.g. "novita". */
-  slug: string;
-  /** Human label as it appears in article frontmatter, e.g. "Novità". */
-  label: string;
+  /** Language-neutral stable key, e.g. "news". Used in frontmatter and URLs. */
+  key: string;
+  /** Localized labels, e.g. { en: "News", it: "Novità" }. */
+  labels: Record<Locale, string>;
 }
 
 export interface SiteConfig {
-  /** Display name, e.g. "TabletNexus". */
   name: string;
-  /** Bare domain, e.g. "tabletnexus.com". */
   domain: string;
-  /** One-line tagline under the logo. */
-  tagline: string;
-  /** Meta description fallback for pages without their own. */
-  description: string;
-  /** Brand accent colors (any valid CSS color). */
+  tagline: Record<Locale, string>;
+  description: Record<Locale, string>;
   brand: {
     accent: string;
     accentDark: string;
   };
-  /** Categories this site uses, in nav order. */
   categories: SiteCategory[];
+}
+
+/** Localized label for a category key (falls back to the key itself). */
+export function categoryLabel(
+  site: SiteConfig,
+  key: string,
+  lang: Locale,
+): string {
+  return site.categories.find((c) => c.key === key)?.labels[lang] ?? key;
 }

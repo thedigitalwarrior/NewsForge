@@ -1,0 +1,56 @@
+---
+import type { GetStaticPaths } from "astro";
+import BaseLayout from "@shared/layouts/BaseLayout.astro";
+import ArticleCard from "@shared/components/ArticleCard.astro";
+import { getVisibleNews } from "@shared/lib/news";
+import { categoryLabel } from "@shared/config/site";
+import { locales, type Locale } from "@shared/i18n/config";
+import { categoryUrl } from "@shared/i18n/routes";
+import { useTranslations } from "@shared/i18n/ui";
+import { site } from "../../../config/site";
+
+export const getStaticPaths = (async () => {
+  const paths = [];
+  for (const lang of locales) {
+    for (const cat of site.categories) {
+      paths.push({ params: { lang, key: cat.key } });
+    }
+  }
+  return paths;
+}) satisfies GetStaticPaths;
+
+const lang = Astro.params.lang as Locale;
+const key = Astro.params.key as string;
+const posts = (await getVisibleNews(lang)).filter(
+  (p) => p.data.category === key,
+);
+const label = categoryLabel(site, key, lang);
+const t = useTranslations(lang);
+
+const alternates: Partial<Record<Locale, string>> = {};
+for (const l of locales) alternates[l] = categoryUrl(l, key);
+---
+
+<BaseLayout
+  site={site}
+  lang={lang}
+  title={label}
+  description={`${label} — ${site.name}`}
+  alternates={alternates}
+>
+  <div class="mx-auto max-w-5xl px-4 py-10">
+    <p class="text-sm text-gray-500">{t("category.eyebrow")}</p>
+    <h1 class="mb-8 text-3xl font-extrabold tracking-tight text-gray-900">{label}</h1>
+    {
+      posts.length > 0 ? (
+        <section class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {posts.map((post) => (
+            <ArticleCard post={post} lang={lang} site={site} />
+          ))}
+        </section>
+      ) : (
+        <p class="text-gray-600">{t("category.empty")}</p>
+      )
+    }
+  </div>
+</BaseLayout>

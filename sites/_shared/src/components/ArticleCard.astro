@@ -1,18 +1,28 @@
 ---
 import type { CollectionEntry } from "astro:content";
+import { categoryLabel, type SiteConfig } from "../config/site";
+import type { Locale } from "../i18n/config";
+import { articleUrl } from "../i18n/routes";
+import { useTranslations } from "../i18n/ui";
+import { parseNewsId } from "../lib/news";
 import CategoryBadge from "./CategoryBadge.astro";
 import FormattedDate from "./FormattedDate.astro";
 
 interface Props {
   post: CollectionEntry<"news">;
+  lang: Locale;
+  site: SiteConfig;
   /** Render as the large lead card (first item on the homepage). */
   featured?: boolean;
 }
 
-const { post, featured = false } = Astro.props;
+const { post, lang, site, featured = false } = Astro.props;
+const { slug } = parseNewsId(post.id);
 const { title, description, pubDate, category, image, imageAlt, draft } =
   post.data;
-const href = `/news/${post.id}/`;
+const href = articleUrl(lang, slug);
+const t = useTranslations(lang);
+const label = categoryLabel(site, category, lang);
 ---
 
 <article
@@ -38,9 +48,14 @@ const href = `/news/${post.id}/`;
   }
   <div class="flex flex-1 flex-col gap-3 p-5">
     <div class="flex items-center gap-2 text-xs text-gray-500">
-      <CategoryBadge category={category} class="relative z-10" />
-      <FormattedDate date={pubDate} />
-      {draft && <span class="font-medium text-amber-600">· bozza</span>}
+      <CategoryBadge
+        lang={lang}
+        categoryKey={category}
+        label={label}
+        class="relative z-10"
+      />
+      <FormattedDate date={pubDate} lang={lang} />
+      {draft && <span class="font-medium text-amber-600">· {t("article.draft")}</span>}
     </div>
     <h2
       class:list={[

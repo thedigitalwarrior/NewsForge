@@ -1,6 +1,10 @@
 ---
 import { render, type CollectionEntry } from "astro:content";
-import type { SiteConfig } from "../config/site";
+import { categoryLabel, type SiteConfig } from "../config/site";
+import { locales, type Locale } from "../i18n/config";
+import { articleUrl } from "../i18n/routes";
+import { useTranslations } from "../i18n/ui";
+import { getNewsTranslations, parseNewsId } from "../lib/news";
 import BaseLayout from "./BaseLayout.astro";
 import CategoryBadge from "../components/CategoryBadge.astro";
 import FormattedDate from "../components/FormattedDate.astro";
@@ -8,30 +12,42 @@ import { mdxComponents } from "../components/mdx";
 
 interface Props {
   site: SiteConfig;
+  lang: Locale;
   post: CollectionEntry<"news">;
 }
 
-const { site, post } = Astro.props;
+const { site, lang, post } = Astro.props;
+const { slug } = parseNewsId(post.id);
 const { title, description, pubDate, category, image, imageAlt, sources } =
   post.data;
 const { Content } = await render(post);
+const t = useTranslations(lang);
+const label = categoryLabel(site, category, lang);
 
-// Resolve og:image to an absolute URL (handles both remote URLs and local paths).
+// Alternates: the locales that actually have this slug translated.
+const available = await getNewsTranslations(slug);
+const alternates: Partial<Record<Locale, string>> = {};
+for (const l of locales) {
+  if (available.includes(l)) alternates[l] = articleUrl(l, slug);
+}
+
 const ogImage = image ? new URL(image, Astro.site).href : undefined;
 ---
 
 <BaseLayout
   site={site}
+  lang={lang}
   title={title}
   description={description}
   image={ogImage}
   ogType="article"
+  alternates={alternates}
 >
   <article class="mx-auto max-w-3xl px-4 py-10" data-pagefind-body>
     <header class="mb-8">
       <div class="mb-4 flex items-center gap-3 text-sm text-gray-500">
-        <CategoryBadge category={category} />
-        <FormattedDate date={pubDate} style="long" />
+        <CategoryBadge lang={lang} categoryKey={category} label={label} />
+        <FormattedDate date={pubDate} lang={lang} style="long" />
       </div>
       <h1 class="text-4xl font-extrabold leading-tight tracking-tight text-gray-900">
         {title}
@@ -57,7 +73,7 @@ const ogImage = image ? new URL(image, Astro.site).href : undefined;
       sources.length > 0 && (
         <footer class="mt-12 border-t border-gray-200 pt-6">
           <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Fonti
+            {t("article.sources")}
           </h2>
           <ul class="mt-3 space-y-1 text-sm">
             {sources.map((url) => (
@@ -78,8 +94,11 @@ const ogImage = image ? new URL(image, Astro.site).href : undefined;
     }
 
     <p class="mt-10">
-      <a href="/" class="text-sm font-medium text-brand-dark hover:underline">
-        &larr; Torna alla home
+      <a
+        href={`/${lang}/`}
+        class="text-sm font-medium text-brand-dark hover:underline"
+      >
+        {t("article.back")}
       </a>
     </p>
   </article>

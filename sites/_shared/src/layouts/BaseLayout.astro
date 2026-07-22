@@ -1,11 +1,14 @@
 ---
 import "../styles/global.css";
 import type { SiteConfig } from "../config/site";
+import { defaultLocale, locales, type Locale } from "../i18n/config";
+import { rssUrl } from "../i18n/routes";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 
 interface Props {
   site: SiteConfig;
+  lang: Locale;
   title: string;
   description?: string;
   /** Set false on the homepage so the tab shows just the site name. */
@@ -14,39 +17,50 @@ interface Props {
   image?: string;
   /** Open Graph type: "website" (default) or "article". */
   ogType?: "website" | "article";
+  /** Equivalent-page URL per locale (for the switcher + hreflang). */
+  alternates: Partial<Record<Locale, string>>;
 }
 
 const {
   site,
+  lang,
   title,
   description,
   suffixSiteName = true,
   image,
   ogType = "website",
+  alternates,
 } = Astro.props;
 
-const metaDescription = description ?? site.description;
+const metaDescription = description ?? site.description[lang];
 const pageTitle = suffixSiteName ? `${title} — ${site.name}` : title;
-
-// Canonical + social URLs. Astro.site comes from the `site` option in the config.
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
-// Inject the per-site brand accent as CSS variables consumed by the shared theme.
+// hreflang alternates (absolute), plus x-default → the default locale.
+const hreflangs = locales
+  .filter((l) => alternates[l])
+  .map((l) => ({ lang: l, href: new URL(alternates[l]!, Astro.site).href }));
+const xDefault = alternates[defaultLocale]
+  ? new URL(alternates[defaultLocale]!, Astro.site).href
+  : undefined;
+
 const brandStyle = `--brand:${site.brand.accent};--brand-dark:${site.brand.accentDark};`;
 ---
 
 <!doctype html>
-<html lang="it" style={brandStyle}>
+<html lang={lang} style={brandStyle}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href={canonicalURL} />
+    {hreflangs.map((h) => <link rel="alternate" hreflang={h.lang} href={h.href} />)}
+    {xDefault && <link rel="alternate" hreflang="x-default" href={xDefault} />}
     <link
       rel="alternate"
       type="application/rss+xml"
       title={site.name}
-      href="/rss.xml"
+      href={rssUrl(lang)}
     />
     <title>{pageTitle}</title>
     <meta name="description" content={metaDescription} />
@@ -55,25 +69,23 @@ const brandStyle = `--brand:${site.brand.accent};--brand-dark:${site.brand.accen
     {/* Open Graph */}
     <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content={lang} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={metaDescription} />
     <meta property="og:url" content={canonicalURL} />
     {image && <meta property="og:image" content={image} />}
 
     {/* Twitter */}
-    <meta
-      name="twitter:card"
-      content={image ? "summary_large_image" : "summary"}
-    />
+    <meta name="twitter:card" content={image ? "summary_large_image" : "summary"} />
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={metaDescription} />
     {image && <meta name="twitter:image" content={image} />}
   </head>
   <body class="flex min-h-screen flex-col bg-white text-gray-900 antialiased">
-    <SiteHeader site={site} />
+    <SiteHeader site={site} lang={lang} alternates={alternates} />
     <main class="flex-1">
       <slot />
     </main>
-    <SiteFooter site={site} />
+    <SiteFooter site={site} lang={lang} />
   </body>
 </html>

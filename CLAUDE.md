@@ -73,7 +73,13 @@ ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
 
 ## Convenzioni
 
-- **Lingua:** contenuti dei siti in italiano; codice, commenti e nomi in inglese.
+- **Lingua e i18n:** i siti sono **multilingua**. Lingua canonica/default: **inglese**;
+  localizzazione in altre lingue (attuali: `en`, `it`). URL simmetriche col prefisso lingua
+  (`/en/…`, `/it/…`). Il contenuto vive per-lingua in `src/content/news/<lang>/<slug>.md` (lo
+  slug è condiviso = chiave di traduzione). Le categorie sono **chiavi neutre** (`news`,
+  `comparisons`, …) con etichette localizzate nel config. Le stringhe UI stanno in
+  `_shared/src/i18n/`. La pipeline genera il canonico in inglese e poi traduce.
+  Codice, commenti e nomi restano in inglese.
 - **TypeScript** ovunque (siti e pipeline), strict mode.
 - **Frontmatter articoli** (schema in `sites/_shared/src/content/config.ts`):
   `title`, `description`, `pubDate`, `category`, `image`, `imageAlt`, `sources` (array di URL),

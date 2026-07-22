@@ -1,15 +1,18 @@
 ---
+import { localeTags, type Locale } from "../i18n/config";
+
 interface Props {
   date: Date;
+  lang: Locale;
   /** Intl date style; "medium" for cards, "long" for the article header. */
   style?: "medium" | "long";
   class?: string;
 }
 
-const { date, style = "medium", class: className } = Astro.props;
-const formatted = new Intl.DateTimeFormat("it-IT", { dateStyle: style }).format(
-  date,
-);
+const { date, lang, style = "medium", class: className } = Astro.props;
+const formatted = new Intl.DateTimeFormat(localeTags[lang], {
+  dateStyle: style,
+}).format(date);
 ---
 
 <time datetime={date.toISOString()} class={className}>{formatted}</time>

@@ -1,0 +1,37 @@
+---
+import { locales, type Locale } from "../i18n/config";
+
+interface Props {
+  lang: Locale;
+  /** URL of the equivalent page per locale (missing = no translation). */
+  alternates: Partial<Record<Locale, string>>;
+}
+
+const { lang, alternates } = Astro.props;
+---
+
+<div class="flex items-center gap-1 text-xs font-semibold">
+  {
+    locales.map((l, i) => (
+      <>
+        {i > 0 && <span class="text-gray-300">/</span>}
+        {l === lang ? (
+          <span class="text-brand-dark" aria-current="true">
+            {l.toUpperCase()}
+          </span>
+        ) : alternates[l] ? (
+          <a
+            href={alternates[l]}
+            class="text-gray-500 transition hover:text-brand-dark"
+          >
+            {l.toUpperCase()}
+          </a>
+        ) : (
+          <span class="text-gray-300" title="Not available in this language">
+            {l.toUpperCase()}
+          </span>
+        )}
+      </>
+    ))
+  }
+</div>

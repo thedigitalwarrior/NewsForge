@@ -178,6 +178,25 @@ già coperte → zero token sprecati) e un post-check sullo slug prima di scrive
 bypassa. Motivo: rendere le run ripetibili/schedulabili senza duplicati. Il timer systemd vero
 è fase 7 (infra); qui si costruisce solo la base idempotente.
 
+## 2026-07 — Multilingua: default inglese + i18n (ribalta "contenuti in italiano")
+Il `CLAUDE.md` diceva "contenuti dei siti in italiano". Decisione ribaltata: i siti puntano al
+**massimo pubblico**, quindi lingua **canonica inglese** + localizzazione. Set iniziale
+conservativo: **en, it** (si aggiungono altre lingue dopo). Scelte:
+- **URL simmetriche col prefisso lingua** (`/en/…`, `/it/…`); la radice `/` reindirizza a `/en/`.
+  Segmenti di path in inglese (`news`, `category`, `about`, `search`); si localizzano contenuti
+  ed etichette, non i segmenti.
+- **Contenuto per-lingua**: `src/content/news/<lang>/<slug>.md`; lo slug è condiviso tra lingue
+  = chiave di traduzione. Un evento → un canonico (EN) + N traduzioni (non eventi separati; il
+  dedup v3 resta a livello di evento, il modello di embedding è multilingue).
+- **Categorie come chiavi neutre** (`news`, `comparisons`, …) con etichette localizzate nel
+  config del sito. Stringhe UI in `_shared/src/i18n/` (dizionario + `useTranslations`).
+- **Selettore lingua** che resta nella sezione (articolo EN → stesso slug IT), `hreflang`
+  (en/it/x-default), **RSS per lingua**, `getVisibleNews(lang)`.
+- **Pipeline**: genera il canonico EN → passo di traduzione verso le altre lingue (fase B).
+Lingue non-latine (cinese/giapponese) e RTL (arabo) rimandate: il limite non è la capacità
+dell'LLM ma la **verificabilità** (non poter rileggere) e la complessità di layout.
+Scelta lingue iniziali motivata dalle più parlate a scrittura latina, verificabili e senza RTL.
+
 ## 2026-07 — Dedup semantico con embedding locali (Pipeline v3)
 Il dedup della fase 6 (URL + slug esatti) è ingenuo: non riconosce la stessa notizia da fonti
 diverse né la ripresa in ritardo. La v3 aggiunge una **cascata**: (1) URL esatto → scarta;

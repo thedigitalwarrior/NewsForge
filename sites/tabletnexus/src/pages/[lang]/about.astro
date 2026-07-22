@@ -1,0 +1,52 @@
+---
+import type { GetStaticPaths } from "astro";
+import BaseLayout from "@shared/layouts/BaseLayout.astro";
+import { locales, type Locale } from "@shared/i18n/config";
+import { aboutUrl } from "@shared/i18n/routes";
+import { useTranslations } from "@shared/i18n/ui";
+import { site } from "../../config/site";
+
+export const getStaticPaths = (async () => {
+  return locales.map((lang) => ({ params: { lang } }));
+}) satisfies GetStaticPaths;
+
+const lang = Astro.params.lang as Locale;
+const t = useTranslations(lang);
+
+const alternates: Partial<Record<Locale, string>> = {};
+for (const l of locales) alternates[l] = aboutUrl(l);
+
+const content: Record<Locale, { intro: string; ai: string; sources: string }> = {
+  en: {
+    intro: `${site.name} is an independent site about tablets: news, comparisons and buying guides, written clearly and without clickbait.`,
+    ai: "Our articles are produced with the help of AI tools, under human supervision. AI helps synthesize information from multiple sources; topic selection, fact-checking and publishing remain human decisions.",
+    sources:
+      "Every article cites the sources it is based on. We do not copy or closely paraphrase others' work: we produce original syntheses with facts verified across multiple sources.",
+  },
+  it: {
+    intro: `${site.name} è un sito indipendente dedicato ai tablet: novità, confronti e guide all'acquisto, scritte in modo chiaro e senza clickbait.`,
+    ai: "I nostri articoli sono realizzati con l'ausilio di strumenti di intelligenza artificiale, sotto supervisione umana. L'AI aiuta a sintetizzare informazioni da più fonti; la selezione dei temi, la verifica dei fatti e la pubblicazione restano decisioni umane.",
+    sources:
+      "Ogni articolo cita le fonti su cui si basa. Non copiamo né parafrasiamo da vicino il lavoro altrui: produciamo sintesi originali con fatti verificati su più fonti.",
+  },
+};
+const c = content[lang];
+---
+
+<BaseLayout
+  site={site}
+  lang={lang}
+  title={t("nav.about")}
+  alternates={alternates}
+>
+  <div class="mx-auto max-w-3xl px-4 py-10">
+    <div class="prose prose-lg prose-gray max-w-none">
+      <h1>{t("nav.about")}</h1>
+      <p>{c.intro}</p>
+      <h2>{lang === "it" ? "Il ruolo dell'AI" : "The role of AI"}</h2>
+      <p>{c.ai}</p>
+      <h2>{lang === "it" ? "Le fonti" : "Sources"}</h2>
+      <p>{c.sources}</p>
+    </div>
+  </div>
+</BaseLayout>

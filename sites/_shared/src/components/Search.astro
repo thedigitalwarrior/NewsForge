@@ -1,33 +1,45 @@
 ---
+import type { Locale } from "../i18n/config";
+import { useTranslations } from "../i18n/ui";
+
 /*
- * Pagefind search UI. The pagefind bundle (`/pagefind/pagefind-ui.js` + css) is
- * produced by the `pagefind` CLI during `npm run build`, so search works under
- * `astro build && astro preview` and in production — NOT under `astro dev`,
- * where the assets 404 harmlessly and the box simply stays empty.
+ * Pagefind search UI. The pagefind bundle is produced by `npm run build`, so
+ * search works under build/preview and in production — NOT under `astro dev`.
+ * Pagefind auto-scopes results by the page's <html lang>, so each locale's
+ * search page returns that locale's content.
  */
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
 ---
 
 <div id="search" class="pagefind-ui"></div>
 
 <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
 <script is:inline src="/pagefind/pagefind-ui.js"></script>
-<script is:inline>
+<script
+  is:inline
+  define:vars={{
+    placeholder: t("search.placeholder"),
+    zeroResults: t("search.zeroResults"),
+    lang,
+  }}
+>
   window.addEventListener("DOMContentLoaded", () => {
     if (typeof window.PagefindUI === "undefined") return;
     new window.PagefindUI({
       element: "#search",
       showSubResults: true,
       showImages: false,
-      translations: {
-        placeholder: "Cerca articoli…",
-        zero_results: "Nessun risultato per «[SEARCH_TERM]»",
-      },
+      translations: { placeholder, zero_results: zeroResults },
     });
   });
 </script>
 
 <style>
-  /* Tint the Pagefind UI with the site brand accent. */
   .pagefind-ui {
     --pagefind-ui-primary: var(--brand-dark);
     --pagefind-ui-font: inherit;

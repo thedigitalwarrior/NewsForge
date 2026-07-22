@@ -1,0 +1,24 @@
+---
+import type { GetStaticPaths } from "astro";
+import ArticleLayout from "@shared/layouts/ArticleLayout.astro";
+import { getVisibleNews, parseNewsId } from "@shared/lib/news";
+import { locales, type Locale } from "@shared/i18n/config";
+import { site } from "../../../config/site";
+
+export const getStaticPaths = (async () => {
+  const paths = [];
+  for (const lang of locales) {
+    const posts = await getVisibleNews(lang);
+    for (const post of posts) {
+      const { slug } = parseNewsId(post.id);
+      paths.push({ params: { lang, slug }, props: { post } });
+    }
+  }
+  return paths;
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props;
+const lang = Astro.params.lang as Locale;
+---
+
+<ArticleLayout site={site} lang={lang} post={post} />
