@@ -12,6 +12,11 @@ export interface SiteDefinition {
   targetLocales: string[];
   categories: readonly [string, ...string[]];
   defaultSourceHints: string[];
+  /**
+   * Editorial beats: the queries the discovery step runs against the search
+   * engine. They define what the site covers — widen or narrow them at will.
+   */
+  searchQueries: string[];
 }
 
 /** Human-readable language names, for the translation prompt. */
@@ -33,6 +38,14 @@ export const sites: Record<string, SiteDefinition> = {
       "gsmarena.com",
       "notebookcheck.net",
       "theverge.com",
+    ],
+    searchQueries: [
+      "tablet announcement",
+      "iPad news",
+      "Samsung Galaxy Tab",
+      "Android tablet launch",
+      "e-ink tablet",
+      "tablet price drop",
     ],
   },
 };

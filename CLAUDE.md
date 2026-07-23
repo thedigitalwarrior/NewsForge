@@ -58,6 +58,8 @@ npm run dev            # astro dev con hot reload
 npm run build          # astro build + pagefind --site dist
 
 # pipeline (da pipeline/)
+npm run discover -- --site tabletnexus --dry-run                     # cerca notizie e mostra gli eventi trovati (nessuna generazione)
+npm run discover -- --site tabletnexus --max-articles 2               # scopre e genera i nuovi eventi (multi-fonte)
 npm run generate -- --site tabletnexus --provider mock --dry-run     # prova offline, senza chiave né costi
 npm run generate -- --site tabletnexus --topic "..." --url <fonte>   # genera con Claude (default) da fonti reali
 npm run generate -- --site tabletnexus                               # salva un draft in sites/tabletnexus/src/content/news/

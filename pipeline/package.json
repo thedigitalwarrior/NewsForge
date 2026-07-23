@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "discover": "tsx src/index.ts discover",
     "generate": "tsx src/index.ts generate",
     "review": "tsx src/index.ts review",
     "publish": "tsx src/index.ts publish",

@@ -197,6 +197,22 @@ Lingue non-latine (cinese/giapponese) e RTL (arabo) rimandate: il limite non è 
 dell'LLM ma la **verificabilità** (non poter rileggere) e la complessità di layout.
 Scelta lingue iniziali motivata dalle più parlate a scrittura latina, verificabili e senza RTL.
 
+## 2026-07 — Scoperta via ricerca con Brave (astrazione SearchProvider)
+Le fonti non sono una lista fissa di feed (renderebbe i siti **cloni** di 2-3 testate e non
+coprirebbe il grosso delle notizie): la scoperta avviene **interrogando un motore di ricerca**
+su "argomenti editoriali" per sito (`searchQueries`), pescando da molte testate.
+Astrazione **`SearchProvider`** (come `LLMProvider` ed `Embedder`) → motore sostituibile.
+Backend scelto: **Brave Search API** (endpoint news). Motivi: indice **proprio e indipendente**
+(non rivende Google/Bing → ranking diverso, aiuta a non essere un clone), API ufficiale con uso
+programmatico lecito, tier gratuito **1.000 query/mese**. Scartati: **Google** (nessuna News API;
+la Custom Search è limitata/costosa; lo scraping dei SERP viola i ToS), **Bing** (API di ricerca
+ritirate come prodotto standalone), **GNews/NewsData** (gratuito piccolo e/o vincolato al non
+commerciale), **Serper/SerpAPI** (crediti gratuiti una tantum, poi a pagamento).
+Il loop `discover`: query → candidati → **clustering per evento** (embedding multilingue) →
+dedup contro l'indice → **un articolo per evento con più fonti** (risolve la debolezza "fonte
+singola"). Parametri frugali e configurabili (`--max-queries`, `--per-query`, `--max-articles`,
+`--freshness`) + log del consumo query, per stare dentro il tier gratuito.
+
 ## 2026-07 — Pipeline multilingua: canonico EN + traduzione (i18n fase B)
 La pipeline genera **un solo canonico in inglese** e poi lo **traduce** nelle lingue target
 (oggi `it`), invece di generare N volte da zero: più coerente tra versioni e molto più economico.
