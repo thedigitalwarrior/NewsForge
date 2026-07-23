@@ -1,20 +1,32 @@
 /**
- * Sites the pipeline can target. `categories` mirrors each site's own config in
- * sites/<slug>/src/config/site.ts (keep in sync). Source hints are only used to
- * nudge the prompt; the actual sources come from --url and are fetched locally.
+ * Sites the pipeline can target. Categories are the language-neutral KEYS used in
+ * frontmatter (labels are localized in each site's own config — keep in sync).
+ * Articles are generated in the canonical locale and translated into the targets.
  */
 export interface SiteDefinition {
   slug: string;
   name: string;
+  /** Language articles are written in (the canonical version). */
+  canonicalLocale: string;
+  /** Locales the canonical gets translated into. */
+  targetLocales: string[];
   categories: readonly [string, ...string[]];
   defaultSourceHints: string[];
 }
+
+/** Human-readable language names, for the translation prompt. */
+export const localeNames: Record<string, string> = {
+  en: "English",
+  it: "Italian",
+};
 
 export const sites: Record<string, SiteDefinition> = {
   tabletnexus: {
     slug: "tabletnexus",
     name: "TabletNexus",
-    categories: ["Novità", "Confronti", "Prezzi", "Guide", "Accessori"],
+    canonicalLocale: "en",
+    targetLocales: ["it"],
+    categories: ["news", "comparisons", "prices", "guides", "accessories"],
     defaultSourceHints: [
       "apple.com/newsroom",
       "anandtech.com",

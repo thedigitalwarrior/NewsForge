@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 
 /**
- * Shape the LLM must produce. Mirrors the frontmatter contract in
- * sites/_shared/src/content/config.ts (keep in sync), plus `body`.
- * `pubDate` and `draft` are added by the pipeline, not by the model.
+ * Shape the LLM must produce for the canonical (English) article. Mirrors the
+ * frontmatter contract in sites/_shared/src/content/config.ts (keep in sync),
+ * plus `body`. `pubDate` and `draft` are added by the pipeline, not the model.
  */
 export interface ArticleDraft {
   title: string;
@@ -13,22 +13,24 @@ export interface ArticleDraft {
   sources: string[];
 }
 
-/** Build a per-site output schema whose `category` is constrained to the site's set. */
+/** Build a per-site output schema whose `category` is constrained to the site's keys. */
 export function buildArticleSchema(categories: readonly [string, ...string[]]) {
   return z.object({
-    title: z.string().describe("Titolo dell'articolo, chiaro e senza clickbait"),
+    title: z.string().describe("Article title: clear, no clickbait"),
     description: z
       .string()
-      .describe("Sintesi in una frase, usata come meta description"),
-    category: z.enum(categories).describe("Categoria dell'articolo"),
+      .describe("One-sentence summary, used as the meta description"),
+    category: z
+      .enum(categories)
+      .describe("Language-neutral category key for this article"),
     body: z
       .string()
       .describe(
-        "Corpo dell'articolo in Markdown italiano. Niente titolo H1 e niente frontmatter: solo il testo con sottotitoli ##.",
+        "Article body as English Markdown. No H1 title and no frontmatter: just the text with ## subheadings.",
       ),
     sources: z
       .array(z.url())
       .min(1)
-      .describe("URL delle fonti effettivamente usate"),
+      .describe("URLs of the sources actually used"),
   });
 }

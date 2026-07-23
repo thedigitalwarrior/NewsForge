@@ -52,7 +52,10 @@ qualunque backend — anche un LLM locale senza web search — e rispetta il vin
 3. Chiamata al provider (`LLMProvider`) con prompt editoriale + materiale → output strutturato.
 4. Validazione output contro lo schema Zod condiviso; se invalido, errore e stop.
 5. Dedup post: se lo slug esiste già, non scrive (usa `--force` per rigenerare).
-6. Scrittura file `.md` con `draft: true` + aggiornamento `state/`.
+6. Scrittura del **canonico** (`news/en/<slug>.md`) con `draft: true`.
+7. **Traduzione** verso ogni lingua target → `news/<lang>/<slug>.md` (stesso slug = chiave di
+   traduzione, stesso frontmatter; cambia solo la prosa). Aggiornamento `state/` (una sola voce
+   per evento: le traduzioni sono versioni, non notizie diverse).
 
 Il dedup rende le run **idempotenti**, quindi sicure da schedulare (il timer systemd è fase 7,
 infra). La pubblicazione (`publish`) è un passo umano esplicito: mai automatica.

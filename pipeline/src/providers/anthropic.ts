@@ -8,6 +8,8 @@ import type {
   GenerationResult,
   JudgeResult,
   LLMProvider,
+  TranslationRequest,
+  TranslationResult,
 } from "./types.js";
 
 export interface AnthropicProviderOptions {
@@ -91,6 +93,42 @@ export function createAnthropicProvider(
       return {
         sameEvent: out.sameEvent,
         reason: out.reason,
+        usage: {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        },
+      };
+    },
+
+    async translate(req: TranslationRequest): Promise<TranslationResult> {
+      const schema = z.object({
+        title: z.string().describe("Translated title"),
+        description: z.string().describe("Translated one-sentence description"),
+        body: z.string().describe("Translated Markdown body, same structure"),
+      });
+      const response = await client.messages.parse({
+        model,
+        max_tokens: 8000,
+        system: req.system,
+        thinking: { type: "adaptive" },
+        output_config: { format: zodOutputFormat(schema), effort: "low" },
+        messages: [
+          {
+            role: "user",
+            content: `TITLE:\n${req.title}\n\nDESCRIPTION:\n${req.description}\n\nBODY (Markdown):\n${req.body}`,
+          },
+        ],
+      });
+      const out = response.parsed_output as {
+        title: string;
+        description: string;
+        body: string;
+      } | null;
+      if (!out) throw new Error("Traduzione: output non valido.");
+      return {
+        title: out.title,
+        description: out.description,
+        body: out.body,
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,

@@ -44,6 +44,25 @@ export interface JudgeResult {
 }
 
 /**
+ * Translation of the canonical article's prose. Only title/description/body are
+ * sent: category keys, source URLs and frontmatter stay out of the model's reach.
+ */
+export interface TranslationRequest {
+  /** System prompt built by the pipeline (keeps providers prompt-free). */
+  system: string;
+  title: string;
+  description: string;
+  body: string;
+}
+
+export interface TranslationResult {
+  title: string;
+  description: string;
+  body: string;
+  usage: Usage;
+}
+
+/**
  * Provider-neutral synthesis step. The pipeline does the research (fetch +
  * extraction) itself and passes clean material here, so any backend — Claude,
  * OpenAI, or a local LLM — can implement this without needing a web-search tool.
@@ -57,4 +76,9 @@ export interface LLMProvider {
    * gray zone is treated conservatively (as a duplicate).
    */
   judgeSameEvent?(a: EventSummary, b: EventSummary): Promise<JudgeResult>;
+  /**
+   * Optional: translate the canonical article's prose into another language.
+   * Providers without it simply produce no translations (canonical only).
+   */
+  translate?(req: TranslationRequest): Promise<TranslationResult>;
 }

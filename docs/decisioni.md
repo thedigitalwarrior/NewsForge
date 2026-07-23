@@ -197,6 +197,24 @@ Lingue non-latine (cinese/giapponese) e RTL (arabo) rimandate: il limite non è 
 dell'LLM ma la **verificabilità** (non poter rileggere) e la complessità di layout.
 Scelta lingue iniziali motivata dalle più parlate a scrittura latina, verificabili e senza RTL.
 
+## 2026-07 — Pipeline multilingua: canonico EN + traduzione (i18n fase B)
+La pipeline genera **un solo canonico in inglese** e poi lo **traduce** nelle lingue target
+(oggi `it`), invece di generare N volte da zero: più coerente tra versioni e molto più economico.
+Scelte:
+- **Ambito della traduzione = sola prosa** (titolo, descrizione, corpo). Chiave categoria, URL
+  delle fonti, data e frontmatter **non vengono mai passati al modello**, quindi non possono
+  essere "tradotti". Motivo: un'etichetta di tassonomia è una **scelta di localizzazione**, non
+  una traduzione (il caso "News → Novità"). Il prompt vieta inoltre di tradurre nomi di
+  prodotto/brand/sigle tecniche e di toccare gli URL.
+- **Slug condiviso** tra lingue (dal titolo canonico) = chiave di traduzione; il dedup resta
+  per-evento con **una sola voce** in `state/` (le traduzioni sono versioni, non eventi nuovi).
+- `translate` è una capacità **opzionale** del provider (come il giudice): chi non ce l'ha
+  produce solo il canonico. Il provider `mock` ne implementa una fittizia per i test offline.
+- **`publish` pubblica l'articolo come unità**: porta a `draft:false` tutte le lingue di quello
+  slug (un articolo non è "mezzo pubblicato"). `review` mostra lo stato per lingua.
+- Le categorie nel config della pipeline sono ora **chiavi neutre** (`news`, `comparisons`, …),
+  in sync con il config del sito.
+
 ## 2026-07 — Dedup semantico con embedding locali (Pipeline v3)
 Il dedup della fase 6 (URL + slug esatti) è ingenuo: non riconosce la stessa notizia da fonti
 diverse né la ripresa in ritardo. La v3 aggiunge una **cascata**: (1) URL esatto → scarta;

@@ -2,10 +2,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ArticleDraft } from "./article.js";
 import { buildArticleSchema } from "./article.js";
-import { getSite } from "./sites.js";
+import { getSite, localeNames } from "./sites.js";
 import { getProvider } from "./providers/index.js";
 import { fetchSources } from "./research/fetch.js";
 import { buildInstructions, newsBriefSystem } from "./prompts/news-brief.js";
+import { translateSystem } from "./prompts/translate.js";
 import { toMarkdown } from "./lib/frontmatter.js";
 import { slugify } from "./lib/slugify.js";
 import { siteNewsDir } from "./lib/paths.js";
@@ -23,6 +24,20 @@ export interface GenerateOptions {
   dryRun: boolean;
   /** Regenerate even if the sources/slug/event were already covered. */
   force: boolean;
+}
+
+async function writeArticle(
+  siteSlug: string,
+  lang: string,
+  slug: string,
+  article: ArticleDraft,
+  pubDate: Date,
+): Promise<string> {
+  const dir = siteNewsDir(siteSlug, lang);
+  await mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, `${slug}.md`);
+  await writeFile(filePath, toMarkdown(article, pubDate), "utf8");
+  return filePath;
 }
 
 export async function generate(opts: GenerateOptions): Promise<void> {
@@ -46,8 +61,8 @@ export async function generate(opts: GenerateOptions): Promise<void> {
 
   const provider = getProvider(opts.provider);
 
-  // Semantic dedup: build the event signature, embed it, compare to the covered
-  // index. Catches the same story from a different source/title/time.
+  // Semantic dedup on the event signature (language-agnostic: the embedding
+  // model is multilingual, so sources in any language cluster on the event).
   let signature: EventSignature | undefined;
   let candidateEmbedding: number[] | undefined;
   const sigSource = sources.length
@@ -76,7 +91,7 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   }
 
   console.log(
-    `▶  Genero un articolo per ${site.name} con provider "${opts.provider}"${opts.dryRun ? " (dry-run)" : ""}…`,
+    `▶  Genero l'articolo canonico (${site.canonicalLocale}) per ${site.name} con provider "${opts.provider}"${opts.dryRun ? " (dry-run)" : ""}…`,
   );
 
   const { draft, usage } = await provider.generate({
@@ -88,8 +103,10 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   });
 
   const article = schema.parse(draft) as ArticleDraft;
-  logUsage(provider.name, usage);
+  logUsage(`${provider.name} · canonico`, usage);
 
+  // The slug comes from the canonical title and is SHARED across languages:
+  // it's the translation key that links the versions.
   const slug = slugify(article.title);
   if (!opts.force && isCovered(state, { slug })) {
     console.log(
@@ -98,18 +115,50 @@ export async function generate(opts: GenerateOptions): Promise<void> {
     return;
   }
 
-  const markdown = toMarkdown(article, new Date());
+  const pubDate = new Date();
 
   if (opts.dryRun) {
     console.log("\n----- DRY RUN: nessun file scritto, stato non aggiornato -----\n");
-    console.log(markdown);
+    console.log(toMarkdown(article, pubDate));
+    if (site.targetLocales.length) {
+      console.log(
+        `(in una run reale seguirebbero le traduzioni: ${site.targetLocales.join(", ")})`,
+      );
+    }
     return;
   }
 
-  const dir = siteNewsDir(site.slug);
-  await mkdir(dir, { recursive: true });
-  const filePath = path.join(dir, `${slug}.md`);
-  await writeFile(filePath, markdown, "utf8");
+  const written: string[] = [];
+  written.push(
+    await writeArticle(site.slug, site.canonicalLocale, slug, article, pubDate),
+  );
+
+  // Translations: same slug, same frontmatter (category key, sources, date);
+  // only the prose changes.
+  for (const target of site.targetLocales) {
+    if (!provider.translate) {
+      console.warn(
+        `  ⚠️  Il provider "${provider.name}" non sa tradurre: salto ${target}.`,
+      );
+      continue;
+    }
+    const res = await provider.translate({
+      system: translateSystem(localeNames[target] ?? target),
+      title: article.title,
+      description: article.description,
+      body: article.body,
+    });
+    logUsage(`${provider.name} · traduzione ${target}`, res.usage);
+    const translated: ArticleDraft = {
+      ...article,
+      title: res.title,
+      description: res.description,
+      body: res.body,
+    };
+    written.push(
+      await writeArticle(site.slug, target, slug, translated, pubDate),
+    );
+  }
 
   state.covered.push({
     slug,
@@ -122,5 +171,6 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   });
   await saveState(site.slug, state);
 
-  console.log(`✓  Articolo scritto (draft: true): ${filePath}`);
+  console.log(`✓  Articolo scritto (draft: true) in ${written.length} lingua/e:`);
+  for (const f of written) console.log(`   · ${f}`);
 }

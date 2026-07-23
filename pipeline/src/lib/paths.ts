@@ -5,7 +5,12 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, "..", "..", "..");
 
-/** Real content directory the pipeline writes into (draft-first). */
-export function siteNewsDir(slug: string): string {
+/** Root of a site's news content (contains one directory per locale). */
+export function siteNewsRoot(slug: string): string {
   return path.join(repoRoot, "sites", slug, "src", "content", "news");
+}
+
+/** Per-locale content directory the pipeline writes into (draft-first). */
+export function siteNewsDir(slug: string, lang: string): string {
+  return path.join(siteNewsRoot(slug), lang);
 }

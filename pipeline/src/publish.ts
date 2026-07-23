@@ -2,13 +2,19 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getSite } from "./sites.js";
-import { siteNewsDir } from "./lib/paths.js";
+import { siteNewsRoot } from "./lib/paths.js";
 
-interface ArticleInfo {
-  slug: string;
+interface ArticleVersion {
+  lang: string;
   file: string;
   title: string;
   draft: boolean;
+}
+
+/** One article = one slug with a version per language. */
+interface ArticleGroup {
+  slug: string;
+  versions: ArticleVersion[];
 }
 
 function frontmatterOf(raw: string): string {
@@ -16,66 +22,101 @@ function frontmatterOf(raw: string): string {
   return match ? match[1] : "";
 }
 
-async function listArticles(siteSlug: string): Promise<ArticleInfo[]> {
-  const dir = siteNewsDir(siteSlug);
-  if (!existsSync(dir)) return [];
-  const files = (await readdir(dir)).filter((f) => /\.(md|mdx)$/.test(f));
-  const infos: ArticleInfo[] = [];
-  for (const file of files) {
-    const raw = await readFile(path.join(dir, file), "utf8");
-    const fm = frontmatterOf(raw);
-    const titleMatch = fm.match(/^title:\s*(.+)$/m);
-    let title = titleMatch ? titleMatch[1].trim() : file;
-    try {
-      if (title.startsWith('"')) title = JSON.parse(title) as string;
-    } catch {
-      /* leave as-is */
+async function listArticles(siteSlug: string): Promise<ArticleGroup[]> {
+  const root = siteNewsRoot(siteSlug);
+  if (!existsSync(root)) return [];
+
+  const groups = new Map<string, ArticleVersion[]>();
+  const langs = (await readdir(root, { withFileTypes: true }))
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  for (const lang of langs) {
+    const dir = path.join(root, lang);
+    const files = (await readdir(dir)).filter((f) => /\.(md|mdx)$/.test(f));
+    for (const file of files) {
+      const raw = await readFile(path.join(dir, file), "utf8");
+      const fm = frontmatterOf(raw);
+      const titleMatch = fm.match(/^title:\s*(.+)$/m);
+      let title = titleMatch ? titleMatch[1].trim() : file;
+      try {
+        if (title.startsWith('"')) title = JSON.parse(title) as string;
+      } catch {
+        /* leave as-is */
+      }
+      const slug = file.replace(/\.(md|mdx)$/, "");
+      const version: ArticleVersion = {
+        lang,
+        file: path.join(lang, file),
+        title,
+        draft: /^draft:\s*true\b/m.test(fm),
+      };
+      groups.set(slug, [...(groups.get(slug) ?? []), version]);
     }
-    const draft = /^draft:\s*true\b/m.test(fm);
-    infos.push({ slug: file.replace(/\.(md|mdx)$/, ""), file, title, draft });
   }
-  return infos.sort((a, b) => a.slug.localeCompare(b.slug));
+
+  return [...groups.entries()]
+    .map(([slug, versions]) => ({
+      slug,
+      versions: versions.sort((a, b) => a.lang.localeCompare(b.lang)),
+    }))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-/** Print the review queue: which articles are published vs still draft. */
+/** Print the review queue: one line per article, with per-language status. */
 export async function review(siteSlug: string): Promise<void> {
   const site = getSite(siteSlug);
-  const articles = await listArticles(site.slug);
-  if (articles.length === 0) {
+  const groups = await listArticles(site.slug);
+  if (groups.length === 0) {
     console.log(`Nessun articolo in ${site.name}.`);
     return;
   }
-  const drafts = articles.filter((a) => a.draft);
-  console.log(`Coda di revisione — ${site.name} (${articles.length} articoli, ${drafts.length} bozze)\n`);
-  for (const a of articles) {
-    const badge = a.draft ? "📝 bozza    " : "✅ pubblicato";
-    console.log(`  ${badge}  ${a.slug}\n               ${a.title}`);
+
+  const withDrafts = groups.filter((g) => g.versions.some((v) => v.draft));
+  console.log(
+    `Coda di revisione — ${site.name} (${groups.length} articoli, ${withDrafts.length} con bozze)\n`,
+  );
+
+  for (const g of groups) {
+    const anyDraft = g.versions.some((v) => v.draft);
+    const badge = anyDraft ? "📝 bozza     " : "✅ pubblicato";
+    const langs = g.versions
+      .map((v) => `${v.lang}:${v.draft ? "bozza" : "pubbl."}`)
+      .join(", ");
+    // Show the canonical title when present, else the first available.
+    const canonical =
+      g.versions.find((v) => v.lang === site.canonicalLocale) ?? g.versions[0];
+    console.log(`  ${badge}  ${g.slug}  [${langs}]`);
+    console.log(`               ${canonical.title}`);
   }
-  if (drafts.length > 0) {
+
+  if (withDrafts.length > 0) {
     console.log(
       `\nPer pubblicare: npm run publish -- --site ${site.slug} --slug <slug>  (oppure --all)`,
     );
   }
 }
 
-/** Flip draft: true -> false on one article (by slug) or all drafts (--all). */
+/**
+ * Publish an article: flips draft:true -> false on ALL its language versions,
+ * because the translations are versions of the same article, not separate ones.
+ */
 export async function publish(
   siteSlug: string,
   opts: { slug?: string; all?: boolean },
 ): Promise<void> {
   const site = getSite(siteSlug);
-  const dir = siteNewsDir(site.slug);
-  const articles = await listArticles(site.slug);
-  const drafts = articles.filter((a) => a.draft);
+  const root = siteNewsRoot(site.slug);
+  const groups = await listArticles(site.slug);
 
-  let targets: ArticleInfo[];
+  let targets: ArticleGroup[];
   if (opts.all) {
-    targets = drafts;
+    targets = groups.filter((g) => g.versions.some((v) => v.draft));
   } else if (opts.slug) {
-    const found = articles.find((a) => a.slug === opts.slug);
+    const found = groups.find((g) => g.slug === opts.slug);
     if (!found) throw new Error(`Slug non trovato: "${opts.slug}".`);
-    if (!found.draft) {
-      console.log(`"${found.slug}" è già pubblicato. Nulla da fare.`);
+    if (!found.versions.some((v) => v.draft)) {
+      console.log(`"${found.slug}" è già pubblicato in tutte le lingue.`);
       return;
     }
     targets = [found];
@@ -88,12 +129,15 @@ export async function publish(
     return;
   }
 
-  for (const a of targets) {
-    const filePath = path.join(dir, a.file);
-    const raw = await readFile(filePath, "utf8");
-    // Only touch the frontmatter draft line.
-    const updated = raw.replace(/^draft:\s*true\b/m, "draft: false");
-    await writeFile(filePath, updated, "utf8");
-    console.log(`✓  Pubblicato: ${a.slug}`);
+  for (const group of targets) {
+    const published: string[] = [];
+    for (const version of group.versions) {
+      if (!version.draft) continue;
+      const filePath = path.join(root, version.file);
+      const raw = await readFile(filePath, "utf8");
+      await writeFile(filePath, raw.replace(/^draft:\s*true\b/m, "draft: false"), "utf8");
+      published.push(version.lang);
+    }
+    console.log(`✓  Pubblicato: ${group.slug} (${published.join(", ")})`);
   }
 }
