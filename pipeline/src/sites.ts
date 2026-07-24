@@ -17,6 +17,11 @@ export interface SiteDefinition {
    * engine. They define what the site covers — widen or narrow them at will.
    */
   searchQueries: string[];
+  /**
+   * Short topic description. Candidates are kept only if their embedding is close
+   * enough to this anchor — the relevance gate that drops off-topic search noise.
+   */
+  topicAnchor: string;
 }
 
 /** Human-readable language names, for the translation prompt. */
@@ -47,6 +52,8 @@ export const sites: Record<string, SiteDefinition> = {
       "e-ink tablet",
       "tablet price drop",
     ],
+    topicAnchor:
+      "Tablets: iPad, Android tablets, Samsung Galaxy Tab, e-ink tablets, tablet reviews, comparisons, prices, deals and accessories.",
   },
 };
 

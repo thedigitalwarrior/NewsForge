@@ -4,7 +4,7 @@ import type { SearchResult } from "./search/types.js";
 import { getProvider } from "./providers/index.js";
 import { getEmbedder } from "./embeddings/index.js";
 import { buildSignature } from "./signature.js";
-import { clusterIndices } from "./embeddings/similarity.js";
+import { clusterIndices, cosine } from "./embeddings/similarity.js";
 import { classifyCandidate } from "./dedup.js";
 import { loadState, normalizeUrl } from "./state.js";
 import { generate } from "./generate.js";
@@ -19,6 +19,8 @@ export interface DiscoverOptions {
   freshness: string;
   /** Cosine threshold to group candidates into one event (lower = looser). */
   clusterThreshold: number;
+  /** Min cosine to the site topic anchor to keep a candidate (drops off-topic). */
+  minRelevance: number;
   dryRun: boolean;
 }
 
@@ -35,9 +37,9 @@ function hostOf(r: SearchResult): string {
 }
 
 /**
- * Search-driven discovery: run the site's editorial queries, gather candidates
- * from many outlets, cluster them per event, drop what's already covered, and
- * generate one multi-source article per genuinely new event.
+ * Search-driven discovery: run the site's editorial queries, drop off-topic
+ * noise (relevance gate), cluster the rest per event, skip what's already
+ * covered, and generate one multi-source article per genuinely new event.
  */
 export async function discover(opts: DiscoverOptions): Promise<void> {
   const site = getSite(opts.site);
@@ -45,7 +47,8 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   const queries = site.searchQueries.slice(0, opts.maxQueries);
 
   console.log(
-    `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" (freshness=${opts.freshness}, clustering@${opts.clusterThreshold})`,
+    `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" ` +
+      `(freshness=${opts.freshness}, rilevanza≥${opts.minRelevance}, clustering@${opts.clusterThreshold})`,
   );
 
   const seenUrls = new Set<string>();
@@ -76,24 +79,58 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     return;
   }
 
-  // Cluster candidates by event (multilingual embeddings: sources in any
-  // language about the same event land in the same cluster).
   const embedder = getEmbedder();
   const signatures = candidates.map((c) => buildSignature(c.title, c.snippet));
-  const embeddings = await embedder.embed(signatures.map((s) => s.text));
-  const clusters = clusterIndices(embeddings, opts.clusterThreshold)
+  // Embed the anchor together with the candidates in one batch.
+  const allEmb = await embedder.embed([
+    site.topicAnchor,
+    ...signatures.map((s) => s.text),
+  ]);
+  const anchorEmb = allEmb[0];
+  const embeddings = allEmb.slice(1);
+  const relevance = embeddings.map((e) => cosine(e, anchorEmb));
+
+  // Relevance gate: keep on-topic candidates.
+  const kept = candidates
+    .map((_, i) => i)
+    .filter((i) => relevance[i] >= opts.minRelevance);
+  const dropped = candidates
+    .map((_, i) => i)
+    .filter((i) => relevance[i] < opts.minRelevance)
+    .sort((a, b) => relevance[b] - relevance[a]);
+
+  console.log(
+    `\n📊  ${candidates.length} candidati → ${kept.length} in tema (scartati ${dropped.length} sotto rilevanza ${opts.minRelevance})`,
+  );
+
+  if (opts.dryRun && dropped.length) {
+    console.log("\n── Scartati per rilevanza (titolo · punteggio) ──");
+    for (const i of dropped) {
+      console.log(`   ${relevance[i].toFixed(2)}  ${candidates[i].title}`);
+    }
+  }
+
+  if (kept.length === 0) {
+    console.log("\nNessun candidato in tema. Abbassa --min-relevance o rivedi le query.");
+    return;
+  }
+
+  // Cluster the kept candidates by event. clusterIndices works on the kept
+  // subset; positions map back to candidate indices via `kept`.
+  const keptEmb = kept.map((i) => embeddings[i]);
+  const clusters = clusterIndices(keptEmb, opts.clusterThreshold)
+    .map((positions) => positions.map((p) => kept[p]))
     .sort((a, b) => b.length - a.length); // biggest events first
 
   const grouped = clusters.filter((c) => c.length > 1).length;
   console.log(
-    `\n📊  ${candidates.length} candidati → ${clusters.length} eventi distinti (${grouped} con più fonti)\n`,
+    `\n📰  ${kept.length} in tema → ${clusters.length} eventi distinti (${grouped} con più fonti)\n`,
   );
 
   const llm = getProvider(opts.provider);
   let produced = 0;
 
   for (const cluster of clusters) {
-    // Real run: stop once we've generated enough (avoids extra judge calls).
     if (!opts.dryRun && produced >= opts.maxArticles) break;
 
     const rep = cluster[0];
@@ -108,12 +145,14 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
       state,
       llm,
       undefined,
-      { useJudge: !opts.dryRun }, // keep dry-run free of LLM calls
+      { useJudge: !opts.dryRun },
     );
 
     const covered = verdict.kind === "duplicate";
     const tag = covered ? `⏭  già coperto (${verdict.score.toFixed(2)})` : "🆕";
-    console.log(`${tag}  [${cluster.length} fonti]  ${label}`);
+    console.log(
+      `${tag}  [rel ${relevance[rep].toFixed(2)}] [${cluster.length} fonti]  ${label}`,
+    );
     if (cluster.length > 1) {
       for (const i of cluster) {
         console.log(`        · ${hostOf(candidates[i])} — ${candidates[i].title}`);
@@ -122,7 +161,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
 
     if (covered) continue;
     produced++;
-    if (opts.dryRun) continue; // show every event, generate nothing
+    if (opts.dryRun) continue;
 
     await generate({
       site: opts.site,
@@ -135,7 +174,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   }
 
   console.log(
-    `\nRiepilogo: ${usedQueries} query · ${candidates.length} candidati · ${clusters.length} eventi · ` +
+    `\nRiepilogo: ${usedQueries} query · ${candidates.length} candidati · ${kept.length} in tema · ${clusters.length} eventi · ` +
       (opts.dryRun
         ? `${produced} nuovi (dry-run, nulla generato)`
         : `${produced} articoli generati (max ${opts.maxArticles})`),

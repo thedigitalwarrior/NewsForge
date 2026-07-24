@@ -13,33 +13,37 @@ export function cosine(a: number[], b: number[]): number {
 }
 
 /**
- * Greedy single-pass clustering: each item joins the cluster whose representative
- * is the MOST similar (above `threshold`), else starts a new one. Good enough for
- * the small batches a single run produces (candidates from a few searches).
- * Returns clusters as lists of input indices.
+ * Nearest-neighbour single-link clustering: each item joins the cluster of the
+ * MOST similar item seen so far (above `threshold`), else starts a new one. This
+ * groups differently-worded titles of the same event (each joins via whichever
+ * sibling it resembles), unlike comparing only to a cluster representative.
+ * O(n²), fine for the small batches a run produces. Returns lists of indices.
  */
 export function clusterIndices(
   embeddings: number[][],
   threshold: number,
 ): number[][] {
-  const clusters: number[][] = [];
-  const reps: number[][] = [];
-  for (let i = 0; i < embeddings.length; i++) {
-    let bestCluster = -1;
+  const n = embeddings.length;
+  const clusterOf = new Array<number>(n).fill(-1);
+  let next = 0;
+  for (let i = 0; i < n; i++) {
+    let bestJ = -1;
     let bestScore = threshold;
-    for (let c = 0; c < reps.length; c++) {
-      const score = cosine(embeddings[i], reps[c]);
+    for (let j = 0; j < i; j++) {
+      const score = cosine(embeddings[i], embeddings[j]);
       if (score >= bestScore) {
         bestScore = score;
-        bestCluster = c;
+        bestJ = j;
       }
     }
-    if (bestCluster >= 0) {
-      clusters[bestCluster].push(i);
-    } else {
-      reps.push(embeddings[i]);
-      clusters.push([i]);
-    }
+    clusterOf[i] = bestJ >= 0 ? clusterOf[bestJ] : next++;
   }
-  return clusters;
+  const byCluster = new Map<number, number[]>();
+  for (let i = 0; i < n; i++) {
+    const c = clusterOf[i];
+    const arr = byCluster.get(c);
+    if (arr) arr.push(i);
+    else byCluster.set(c, [i]);
+  }
+  return [...byCluster.values()];
 }
