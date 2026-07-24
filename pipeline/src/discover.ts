@@ -5,25 +5,34 @@ import { getProvider } from "./providers/index.js";
 import { getEmbedder } from "./embeddings/index.js";
 import { buildSignature } from "./signature.js";
 import { clusterIndices } from "./embeddings/similarity.js";
-import { classifyCandidate, DEFAULT_THRESHOLDS } from "./dedup.js";
+import { classifyCandidate } from "./dedup.js";
 import { loadState, normalizeUrl } from "./state.js";
 import { generate } from "./generate.js";
 
 export interface DiscoverOptions {
   site: string;
-  /** LLM provider used for generation and the same-event judge. */
   provider: string;
-  /** Search engine backend. */
   searchProvider: string;
   maxQueries: number;
   maxArticles: number;
   perQuery: number;
   freshness: string;
+  /** Cosine threshold to group candidates into one event (lower = looser). */
+  clusterThreshold: number;
   dryRun: boolean;
 }
 
 /** Max source URLs passed to a single article (keeps fetch + tokens sane). */
 const MAX_SOURCES_PER_ARTICLE = 3;
+
+function hostOf(r: SearchResult): string {
+  if (r.source) return r.source;
+  try {
+    return new URL(r.url).hostname;
+  } catch {
+    return r.url;
+  }
+}
 
 /**
  * Search-driven discovery: run the site's editorial queries, gather candidates
@@ -36,7 +45,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   const queries = site.searchQueries.slice(0, opts.maxQueries);
 
   console.log(
-    `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" (freshness=${opts.freshness})`,
+    `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" (freshness=${opts.freshness}, clustering@${opts.clusterThreshold})`,
   );
 
   const seenUrls = new Set<string>();
@@ -72,20 +81,20 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   const embedder = getEmbedder();
   const signatures = candidates.map((c) => buildSignature(c.title, c.snippet));
   const embeddings = await embedder.embed(signatures.map((s) => s.text));
-  const clusters = clusterIndices(embeddings, DEFAULT_THRESHOLDS.high);
+  const clusters = clusterIndices(embeddings, opts.clusterThreshold)
+    .sort((a, b) => b.length - a.length); // biggest events first
 
+  const grouped = clusters.filter((c) => c.length > 1).length;
   console.log(
-    `\n📊  ${candidates.length} candidati → ${clusters.length} eventi distinti\n`,
+    `\n📊  ${candidates.length} candidati → ${clusters.length} eventi distinti (${grouped} con più fonti)\n`,
   );
 
   const llm = getProvider(opts.provider);
   let produced = 0;
 
   for (const cluster of clusters) {
-    if (produced >= opts.maxArticles) {
-      console.log(`\n(limite di ${opts.maxArticles} articoli per run raggiunto)`);
-      break;
-    }
+    // Real run: stop once we've generated enough (avoids extra judge calls).
+    if (!opts.dryRun && produced >= opts.maxArticles) break;
 
     const rep = cluster[0];
     const label = candidates[rep].title;
@@ -93,27 +102,27 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
       .map((i) => candidates[i].url)
       .slice(0, MAX_SOURCES_PER_ARTICLE);
 
-    // Reload each time: a previous generation in this same run may have
-    // extended the covered index.
     const state = await loadState(site.slug);
     const verdict = await classifyCandidate(
       { signature: signatures[rep], embedding: embeddings[rep] },
       state,
       llm,
+      undefined,
+      { useJudge: !opts.dryRun }, // keep dry-run free of LLM calls
     );
 
-    if (verdict.kind === "duplicate") {
-      console.log(
-        `⏭  già coperto (score ${verdict.score.toFixed(3)}, via ${verdict.via}): ${label}`,
-      );
-      continue;
+    const covered = verdict.kind === "duplicate";
+    const tag = covered ? `⏭  già coperto (${verdict.score.toFixed(2)})` : "🆕";
+    console.log(`${tag}  [${cluster.length} fonti]  ${label}`);
+    if (cluster.length > 1) {
+      for (const i of cluster) {
+        console.log(`        · ${hostOf(candidates[i])} — ${candidates[i].title}`);
+      }
     }
 
-    console.log(`\n🆕  ${label}`);
-    console.log(`    fonti nel cluster (${urls.length}): ${urls.join(" | ")}`);
+    if (covered) continue;
     produced++;
-
-    if (opts.dryRun) continue;
+    if (opts.dryRun) continue; // show every event, generate nothing
 
     await generate({
       site: opts.site,
@@ -126,6 +135,9 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   }
 
   console.log(
-    `\nRiepilogo: ${usedQueries} query consumate · ${candidates.length} candidati · ${clusters.length} eventi · ${produced} ${opts.dryRun ? "selezionati (dry-run, nulla generato)" : "articoli generati"}.`,
+    `\nRiepilogo: ${usedQueries} query · ${candidates.length} candidati · ${clusters.length} eventi · ` +
+      (opts.dryRun
+        ? `${produced} nuovi (dry-run, nulla generato)`
+        : `${produced} articoli generati (max ${opts.maxArticles})`),
   );
 }

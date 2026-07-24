@@ -32,7 +32,9 @@ export async function classifyCandidate(
   state: SiteState,
   provider: LLMProvider,
   thresholds: DedupThresholds = DEFAULT_THRESHOLDS,
+  opts: { useJudge?: boolean } = {},
 ): Promise<Verdict> {
+  const useJudge = opts.useJudge ?? true;
   const covered = state.covered.filter(
     (e) => e.embedding && e.embedding.length > 0,
   );
@@ -52,8 +54,8 @@ export async function classifyCandidate(
     return { kind: "new", score };
   }
 
-  // Gray zone → ask the judge if the provider offers one.
-  if (provider.judgeSameEvent) {
+  // Gray zone → ask the judge if the provider offers one (unless disabled).
+  if (useJudge && provider.judgeSameEvent) {
     const res = await provider.judgeSameEvent(
       { title: candidate.signature.title, summary: candidate.signature.summary },
       { title: entry.title ?? entry.slug, summary: entry.summary ?? "" },

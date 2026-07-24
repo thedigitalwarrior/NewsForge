@@ -13,9 +13,9 @@ export function cosine(a: number[], b: number[]): number {
 }
 
 /**
- * Greedy single-pass clustering: group items whose embedding is within
- * `threshold` cosine of a cluster representative. Good enough for the small
- * batches a single run produces (candidates from a few feeds/searches).
+ * Greedy single-pass clustering: each item joins the cluster whose representative
+ * is the MOST similar (above `threshold`), else starts a new one. Good enough for
+ * the small batches a single run produces (candidates from a few searches).
  * Returns clusters as lists of input indices.
  */
 export function clusterIndices(
@@ -25,15 +25,18 @@ export function clusterIndices(
   const clusters: number[][] = [];
   const reps: number[][] = [];
   for (let i = 0; i < embeddings.length; i++) {
-    let placed = false;
+    let bestCluster = -1;
+    let bestScore = threshold;
     for (let c = 0; c < reps.length; c++) {
-      if (cosine(embeddings[i], reps[c]) >= threshold) {
-        clusters[c].push(i);
-        placed = true;
-        break;
+      const score = cosine(embeddings[i], reps[c]);
+      if (score >= bestScore) {
+        bestScore = score;
+        bestCluster = c;
       }
     }
-    if (!placed) {
+    if (bestCluster >= 0) {
+      clusters[bestCluster].push(i);
+    } else {
       reps.push(embeddings[i]);
       clusters.push([i]);
     }
