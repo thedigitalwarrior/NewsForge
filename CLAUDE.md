@@ -41,9 +41,11 @@ Markdown/MDX + frontmatter; l'aspetto è deciso interamente dal tema in `sites/_
   MDX per articoli ricchi. Zero JS client-side salvo isole esplicite.
 - **Ricerca:** Pagefind, indicizzazione post-build. NON Meilisearch (rivalutare solo a
   migliaia di articoli/esigenze di ricerca istantanea).
-- **Pipeline:** TypeScript, astrazione `LLMProvider` neutra (Claude/OpenAI/LLM locale);
-  primo backend Anthropic via `@anthropic-ai/sdk` (Sonnet 5). La ricerca fonti è locale
-  (fetch + estrazione), il modello fa solo sintesi strutturata. Gira via cron/systemd timer.
+- **Pipeline:** TypeScript, astrazione `LLMProvider` neutra con **provider per-ruolo**
+  (triage/judge/generate/translate) scelto da `.env`: `anthropic` (Sonnet 5), `openai`, o
+  `local` (Ollama/LM Studio, adapter OpenAI-compatibile). La ricerca fonti è locale (fetch +
+  estrazione) + scoperta via Brave Search. Gira **sulla macchina locale di Stefano** (Ryzen,
+  LLM locali) con **run manuali** — non sul server. Il server SeFlow fa solo serving.
 - **Web server:** Caddy (TLS automatico, un virtual host per dominio).
 - **Hosting:** server dedicato SeFlow QA-2124.2 (Xeon E-2124, 64GB RAM, 2x480GB SSD),
   Proxmox VE su ZFS mirror (controller PERC in modalità HBA). Siti in una VM Debian 12

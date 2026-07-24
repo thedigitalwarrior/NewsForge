@@ -1,9 +1,10 @@
 import { getSite } from "./sites.js";
 import { getSearchProvider } from "./search/index.js";
 import type { SearchResult } from "./search/types.js";
-import { getProvider } from "./providers/index.js";
+import type { TaskProviders } from "./providers/index.js";
 import { getEmbedder } from "./embeddings/index.js";
 import { buildSignature } from "./signature.js";
+import { triageSystem } from "./prompts/triage.js";
 import { classifyCandidate } from "./dedup.js";
 import { loadState, normalizeUrl } from "./state.js";
 import { logUsage } from "./lib/usage.js";
@@ -11,7 +12,6 @@ import { generate } from "./generate.js";
 
 export interface DiscoverOptions {
   site: string;
-  provider: string;
   searchProvider: string;
   maxQueries: number;
   maxArticles: number;
@@ -39,10 +39,12 @@ function hostOf(r: SearchResult): string {
  * only for the cheap dedup fast path against the covered index. Then one
  * multi-source article is generated per genuinely new event.
  */
-export async function discover(opts: DiscoverOptions): Promise<void> {
+export async function discover(
+  opts: DiscoverOptions,
+  providers: TaskProviders,
+): Promise<void> {
   const site = getSite(opts.site);
   const search = getSearchProvider(opts.searchProvider);
-  const llm = getProvider(opts.provider);
   const queries = site.searchQueries.slice(0, opts.maxQueries);
 
   console.log(
@@ -78,16 +80,16 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   }
 
   // LLM triage: relevance + event grouping in one call.
-  if (!llm.triageCandidates) {
+  if (!providers.triage.triageCandidates) {
     throw new Error(
-      `Il provider "${llm.name}" non sa fare la triage: usa un provider che la implementa.`,
+      `Il provider "${providers.triage.name}" non sa fare la triage: usane uno che la implementa.`,
     );
   }
-  const triage = await llm.triageCandidates(
-    site.editorialScope,
+  const triage = await providers.triage.triageCandidates(
+    triageSystem(site.editorialScope),
     candidates.map((c) => ({ title: c.title, snippet: c.snippet })),
   );
-  logUsage(`${llm.name} · triage`, triage.usage);
+  logUsage(`${providers.triage.name} · triage`, triage.usage);
 
   const kept = candidates.map((_, i) => i).filter((i) => triage.verdicts[i].relevant);
   const dropped = candidates.map((_, i) => i).filter((i) => !triage.verdicts[i].relevant);
@@ -142,7 +144,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     const verdict = await classifyCandidate(
       { signature: repSignatures[ci], embedding: repEmbeddings[ci] },
       state,
-      llm,
+      providers.judge,
       undefined,
       { useJudge: !opts.dryRun },
     );
@@ -160,14 +162,10 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     produced++;
     if (opts.dryRun) continue;
 
-    await generate({
-      site: opts.site,
-      provider: opts.provider,
-      topic: label,
-      urls,
-      dryRun: false,
-      force: false,
-    });
+    await generate(
+      { site: opts.site, topic: label, urls, dryRun: false, force: false },
+      providers,
+    );
   }
 
   console.log(

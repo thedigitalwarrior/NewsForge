@@ -62,7 +62,7 @@ export function createMockProvider(): LLMProvider {
     },
 
     async triageCandidates(
-      _scope: string,
+      _system: string,
       items: TriageItem[],
     ): Promise<TriageResult> {
       // Rough offline heuristic: keyword relevance, each item its own event

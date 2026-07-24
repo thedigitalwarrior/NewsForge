@@ -67,23 +67,26 @@ export function createAnthropicProvider(
       };
     },
 
-    async judgeSameEvent(a: EventSummary, b: EventSummary): Promise<JudgeResult> {
+    async judgeSameEvent(
+      system: string,
+      a: EventSummary,
+      b: EventSummary,
+    ): Promise<JudgeResult> {
       const schema = z.object({
         sameEvent: z
           .boolean()
-          .describe("true se A e B trattano lo stesso evento/annuncio specifico"),
-        reason: z.string().describe("breve motivazione"),
+          .describe("true if A and B are the same specific event/announcement"),
+        reason: z.string().describe("short rationale"),
       });
       const response = await client.messages.parse({
         model,
         max_tokens: 500,
-        system:
-          "Sei un esperto di deduplicazione di notizie. Date due notizie (titolo + sommario), stabilisci se trattano lo STESSO evento o annuncio specifico. NON basta lo stesso prodotto, la stessa azienda o lo stesso tema. Esempio: 'iPad Pro M5: recensione' e 'iPad Pro M5: calo di prezzo' riguardano lo stesso prodotto ma eventi diversi → sameEvent = false.",
+        system,
         output_config: { format: zodOutputFormat(schema), effort: "low" },
         messages: [
           {
             role: "user",
-            content: `NOTIZIA A\nTitolo: ${a.title}\nSommario: ${a.summary}\n\nNOTIZIA B\nTitolo: ${b.title}\nSommario: ${b.summary}`,
+            content: `NEWS A\nTitle: ${a.title}\nSummary: ${a.summary}\n\nNEWS B\nTitle: ${b.title}\nSummary: ${b.summary}`,
           },
         ],
       });
@@ -139,7 +142,7 @@ export function createAnthropicProvider(
     },
 
     async triageCandidates(
-      scope: string,
+      system: string,
       items: TriageItem[],
     ): Promise<TriageResult> {
       const schema = z.object({
@@ -161,7 +164,7 @@ export function createAnthropicProvider(
       const response = await client.messages.parse({
         model,
         max_tokens: 6000,
-        system: `You triage search results for a news site. For EACH numbered item decide two things:\n1. relevant — is it on-topic for this site?\n2. event — an integer that groups items reporting the SAME specific news event (same launch, same announcement). Items about the same event MUST share the same event number; genuinely different events get different numbers. Different products, or the same product but a different event, are different events. For irrelevant items the event number is ignored.\n\nSite scope:\n${scope}\n\nReturn exactly one verdict per item, identified by its number.`,
+        system,
         thinking: { type: "adaptive" },
         output_config: { format: zodOutputFormat(schema), effort: "medium" },
         messages: [{ role: "user", content: list }],

@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ArticleDraft } from "./article.js";
 import { buildArticleSchema } from "./article.js";
 import { getSite, localeNames } from "./sites.js";
-import { getProvider } from "./providers/index.js";
+import type { TaskProviders } from "./providers/index.js";
 import { fetchSources } from "./research/fetch.js";
 import { buildInstructions, newsBriefSystem } from "./prompts/news-brief.js";
 import { translateSystem } from "./prompts/translate.js";
@@ -18,7 +18,6 @@ import { classifyCandidate } from "./dedup.js";
 
 export interface GenerateOptions {
   site: string;
-  provider: string;
   topic?: string;
   urls: string[];
   dryRun: boolean;
@@ -40,7 +39,10 @@ async function writeArticle(
   return filePath;
 }
 
-export async function generate(opts: GenerateOptions): Promise<void> {
+export async function generate(
+  opts: GenerateOptions,
+  providers: TaskProviders,
+): Promise<void> {
   const site = getSite(opts.site);
   const schema = buildArticleSchema(site.categories);
   const state = await loadState(site.slug);
@@ -59,10 +61,7 @@ export async function generate(opts: GenerateOptions): Promise<void> {
     throw new Error("Nessuna delle fonti indicate è stata recuperata: interrompo.");
   }
 
-  const provider = getProvider(opts.provider);
-
-  // Semantic dedup on the event signature (language-agnostic: the embedding
-  // model is multilingual, so sources in any language cluster on the event).
+  // Semantic dedup on the event signature (multilingual embeddings + judge).
   let signature: EventSignature | undefined;
   let candidateEmbedding: number[] | undefined;
   const sigSource = sources.length
@@ -78,7 +77,7 @@ export async function generate(opts: GenerateOptions): Promise<void> {
       const verdict = await classifyCandidate(
         { signature, embedding: candidateEmbedding },
         state,
-        provider,
+        providers.judge,
       );
       if (verdict.kind === "duplicate") {
         console.log(
@@ -91,10 +90,10 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   }
 
   console.log(
-    `▶  Genero l'articolo canonico (${site.canonicalLocale}) per ${site.name} con provider "${opts.provider}"${opts.dryRun ? " (dry-run)" : ""}…`,
+    `▶  Genero l'articolo canonico (${site.canonicalLocale}) per ${site.name} con "${providers.generate.name}"${opts.dryRun ? " (dry-run)" : ""}…`,
   );
 
-  const { draft, usage } = await provider.generate({
+  const { draft, usage } = await providers.generate.generate({
     system: newsBriefSystem(site),
     instructions: buildInstructions({ topic: opts.topic, sources, site }),
     sources,
@@ -103,10 +102,9 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   });
 
   const article = schema.parse(draft) as ArticleDraft;
-  logUsage(`${provider.name} · canonico`, usage);
+  logUsage(`${providers.generate.name} · canonico`, usage);
 
-  // The slug comes from the canonical title and is SHARED across languages:
-  // it's the translation key that links the versions.
+  // Slug from the canonical title, SHARED across languages (translation key).
   const slug = slugify(article.title);
   if (!opts.force && isCovered(state, { slug })) {
     console.log(
@@ -120,11 +118,6 @@ export async function generate(opts: GenerateOptions): Promise<void> {
   if (opts.dryRun) {
     console.log("\n----- DRY RUN: nessun file scritto, stato non aggiornato -----\n");
     console.log(toMarkdown(article, pubDate));
-    if (site.targetLocales.length) {
-      console.log(
-        `(in una run reale seguirebbero le traduzioni: ${site.targetLocales.join(", ")})`,
-      );
-    }
     return;
   }
 
@@ -133,30 +126,29 @@ export async function generate(opts: GenerateOptions): Promise<void> {
     await writeArticle(site.slug, site.canonicalLocale, slug, article, pubDate),
   );
 
-  // Translations: same slug, same frontmatter (category key, sources, date);
-  // only the prose changes.
+  // Translations: same slug/frontmatter, only the prose changes.
   for (const target of site.targetLocales) {
-    if (!provider.translate) {
+    if (!providers.translate.translate) {
       console.warn(
-        `  ⚠️  Il provider "${provider.name}" non sa tradurre: salto ${target}.`,
+        `  ⚠️  Il provider "${providers.translate.name}" non sa tradurre: salto ${target}.`,
       );
       continue;
     }
-    const res = await provider.translate({
+    const res = await providers.translate.translate({
       system: translateSystem(localeNames[target] ?? target),
       title: article.title,
       description: article.description,
       body: article.body,
     });
-    logUsage(`${provider.name} · traduzione ${target}`, res.usage);
-    const translated: ArticleDraft = {
-      ...article,
-      title: res.title,
-      description: res.description,
-      body: res.body,
-    };
+    logUsage(`${providers.translate.name} · traduzione ${target}`, res.usage);
     written.push(
-      await writeArticle(site.slug, target, slug, translated, pubDate),
+      await writeArticle(
+        site.slug,
+        target,
+        slug,
+        { ...article, title: res.title, description: res.description, body: res.body },
+        pubDate,
+      ),
     );
   }
 

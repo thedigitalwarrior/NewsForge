@@ -1,4 +1,5 @@
 import { cosine } from "./embeddings/similarity.js";
+import { judgeSystem } from "./prompts/judge.js";
 import type { EventSignature } from "./signature.js";
 import type { CoveredEntry, SiteState } from "./state.js";
 import type { LLMProvider, Usage } from "./providers/types.js";
@@ -30,7 +31,7 @@ export type Verdict =
 export async function classifyCandidate(
   candidate: { signature: EventSignature; embedding: number[] },
   state: SiteState,
-  provider: LLMProvider,
+  judgeProvider: LLMProvider,
   thresholds: DedupThresholds = DEFAULT_THRESHOLDS,
   opts: { useJudge?: boolean } = {},
 ): Promise<Verdict> {
@@ -55,8 +56,9 @@ export async function classifyCandidate(
   }
 
   // Gray zone → ask the judge if the provider offers one (unless disabled).
-  if (useJudge && provider.judgeSameEvent) {
-    const res = await provider.judgeSameEvent(
+  if (useJudge && judgeProvider.judgeSameEvent) {
+    const res = await judgeProvider.judgeSameEvent(
+      judgeSystem(),
       { title: candidate.signature.title, summary: candidate.signature.summary },
       { title: entry.title ?? entry.slug, summary: entry.summary ?? "" },
     );

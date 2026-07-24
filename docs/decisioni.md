@@ -197,6 +197,30 @@ Lingue non-latine (cinese/giapponese) e RTL (arabo) rimandate: il limite non è 
 dell'LLM ma la **verificabilità** (non poter rileggere) e la complessità di layout.
 Scelta lingue iniziali motivata dalle più parlate a scrittura latina, verificabili e senza RTL.
 
+## 2026-07 — La pipeline gira in locale (Ryzen), provider LLM per-ruolo
+Ripensamento architetturale importante. Assunto sbagliato precedente: la pipeline gira **sul
+server SeFlow** (che però non ha GPU → può solo chiamare API a pagamento), il che annullava di
+fatto l'opzione "LLM locale" prevista dall'astrazione. Chiarimento: **servire ≠ generare**. Il
+serving dei siti (statico, sempre acceso) sta sul server; la **generazione** (LLM-pesante) è un
+lavoro separato che gira **sulla macchina locale di Stefano (Ryzen AI Max+ 395, 128GB unificati)**,
+capace di LLM locali. Conseguenze:
+- **Niente scheduler** per ora: run **manuali** (lancio → verifica → publish). Motivi: il tier
+  Brave (1000 query/mese) impone poche run; e run continue con un bug di dedup potrebbero
+  sfornare valanghe di articoli. Meglio poche run controllate.
+- **Opzione 2** (pipeline su macchina di controllo, server solo serve) ora è la scelta: elimina
+  la chiave di scrittura sul server esposto (il push lo fa la macchina locale) e abilita gli LLM
+  locali. La precedente idea "Opzione 1 + Vault/PAT sul server" **decade**.
+- **Provider LLM per-ruolo** (`triage`, `judge`, `generate`, `translate`), configurabile da
+  `pipeline/.env` senza toccare codice: `PIPELINE_PROVIDER_<RUOLO>` con fallback
+  `PIPELINE_PROVIDER`; `--provider` forza tutti i ruoli. Ibrido tipico: **locale** per
+  triage/giudice (alto volume, gratis), **Claude/GPT** per generazione/traduzione (qualità).
+- **Adapter OpenAI-compatibile** unico per `openai` e `local` (Ollama/LM Studio/llama.cpp
+  espongono la stessa API): cambia solo `baseURL`/`model`. Output strutturato via `json_object` +
+  schema iniettato nel prompt + validazione Zod (massima compatibilità hosted/locale).
+- I provider sono ora **prompt-agnostici**: i prompt di giudice/triage vivono in `prompts/`
+  (condivisi tra adapter), come già la traduzione.
+Da validare sul Ryzen: qualità/affidabilità dell'output strutturato dei modelli locali.
+
 ## 2026-07 — Rilevanza e raggruppamento eventi affidati all'LLM (non agli embedding)
 Lezione emersa dai dati reali della scoperta: **gli embedding sono lo strumento sbagliato per i
 giudizi editoriali**. Confrontando la similarità coseno con un'àncora tematica, il gate a

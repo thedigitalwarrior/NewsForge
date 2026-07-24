@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { generate } from "./generate.js";
 import { discover } from "./discover.js";
 import { publish, review } from "./publish.js";
+import { resolveTaskProviders } from "./providers/index.js";
 
 // Load pipeline/.env if present (ANTHROPIC_API_KEY, BRAVE_API_KEY).
 try {
@@ -21,9 +22,15 @@ Comandi:
   review     Elenca lo stato degli articoli (coda di revisione)
   publish    Pubblica una bozza (draft: true -> false, tutte le lingue)
 
+Provider LLM per-ruolo (triage/judge/generate/translate) da pipeline/.env:
+  PIPELINE_PROVIDER=anthropic            # default per i ruoli non specificati
+  PIPELINE_PROVIDER_TRIAGE=local         # es. locale per triage/dedup
+  PIPELINE_PROVIDER_GENERATE=anthropic   # es. Claude per generazione/traduzione
+  --provider <nome> forza TUTTI i ruoli (anthropic | openai | local | mock)
+
 discover:
   --site <slug>          Sito                                   [obbligatorio]
-  --provider <nome>      LLM: anthropic | mock                   [default: anthropic]
+  --provider <nome>      Forza tutti i ruoli su un provider
   --search <nome>        Motore di ricerca: brave                [default: brave]
   --max-queries <n>      Quante query eseguire                   [default: 4]
   --per-query <n>        Risultati per query                     [default: 20]
@@ -49,7 +56,7 @@ async function main(): Promise<void> {
     allowPositionals: true,
     options: {
       site: { type: "string" },
-      provider: { type: "string", default: "anthropic" },
+      provider: { type: "string" },
       search: { type: "string", default: "brave" },
       topic: { type: "string" },
       url: { type: "string", multiple: true, default: [] },
@@ -71,28 +78,34 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const providers = resolveTaskProviders(values.provider);
+
   switch (command) {
     case "discover":
-      await discover({
-        site: values.site,
-        provider: values.provider ?? "anthropic",
-        searchProvider: values.search ?? "brave",
-        maxQueries: Number(values["max-queries"]),
-        perQuery: Number(values["per-query"]),
-        maxArticles: Number(values["max-articles"]),
-        freshness: values.freshness ?? "pd",
-        dryRun: values["dry-run"] ?? false,
-      });
+      await discover(
+        {
+          site: values.site,
+          searchProvider: values.search ?? "brave",
+          maxQueries: Number(values["max-queries"]),
+          perQuery: Number(values["per-query"]),
+          maxArticles: Number(values["max-articles"]),
+          freshness: values.freshness ?? "pd",
+          dryRun: values["dry-run"] ?? false,
+        },
+        providers,
+      );
       break;
     case "generate":
-      await generate({
-        site: values.site,
-        provider: values.provider ?? "anthropic",
-        topic: values.topic,
-        urls: (values.url as string[]) ?? [],
-        dryRun: values["dry-run"] ?? false,
-        force: values.force ?? false,
-      });
+      await generate(
+        {
+          site: values.site,
+          topic: values.topic,
+          urls: (values.url as string[]) ?? [],
+          dryRun: values["dry-run"] ?? false,
+          force: values.force ?? false,
+        },
+        providers,
+      );
       break;
     case "review":
       await review(values.site);

@@ -94,7 +94,11 @@ export interface LLMProvider {
    * Used only for the dedup gray zone. If a provider doesn't implement it, the
    * gray zone is treated conservatively (as a duplicate).
    */
-  judgeSameEvent?(a: EventSummary, b: EventSummary): Promise<JudgeResult>;
+  judgeSameEvent?(
+    system: string,
+    a: EventSummary,
+    b: EventSummary,
+  ): Promise<JudgeResult>;
   /**
    * Optional: translate the canonical article's prose into another language.
    * Providers without it simply produce no translations (canonical only).
@@ -105,5 +109,5 @@ export interface LLMProvider {
    * them by news event. Both are judgments (not surface similarity), which the LLM
    * does far better than embeddings — see the discovery notes in decisioni.md.
    */
-  triageCandidates?(scope: string, items: TriageItem[]): Promise<TriageResult>;
+  triageCandidates?(system: string, items: TriageItem[]): Promise<TriageResult>;
 }
