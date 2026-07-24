@@ -18,10 +18,12 @@ export interface SiteDefinition {
    */
   searchQueries: string[];
   /**
-   * Short topic description. Candidates are kept only if their embedding is close
-   * enough to this anchor — the relevance gate that drops off-topic search noise.
+   * Editorial scope, in prose, for the LLM relevance filter: what belongs on this
+   * site and what does not. This is a judgment call, so it's the LLM's job — not
+   * embedding similarity, which conflates surface features (a foldable *phone*
+   * looks close to "Galaxy Tab"; a WhatsApp-for-iPad story looks like an app).
    */
-  topicAnchor: string;
+  editorialScope: string;
 }
 
 /** Human-readable language names, for the translation prompt. */
@@ -52,8 +54,10 @@ export const sites: Record<string, SiteDefinition> = {
       "e-ink tablet",
       "tablet price drop",
     ],
-    topicAnchor:
-      "Tablets: iPad, Android tablets, Samsung Galaxy Tab, e-ink tablets, tablet reviews, comparisons, prices, deals and accessories.",
+    editorialScope: [
+      "ON TOPIC: news about TABLETS — iPad and iPadOS; Android tablets (Samsung Galaxy Tab, Lenovo, Xiaomi, Huawei MatePad, Honor, Teclast, OnePlus Pad, Moto Pad, etc.); Windows tablets; e-ink/e-paper tablets. Their launches, hardware, software updates, reviews, prices, deals, comparisons, and tablet accessories (keyboards, pens). A story about an app or feature counts only if it is specifically about the tablet experience.",
+      "OFF TOPIC: smartphones and foldable phones (e.g. Galaxy Z Fold, iPhone), smartwatches, laptops and Macs, TVs, generic apps, and anything not primarily about tablets (business, politics, science, world news).",
+    ].join(" "),
   },
 };
 

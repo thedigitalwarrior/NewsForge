@@ -62,6 +62,18 @@ export interface TranslationResult {
   usage: Usage;
 }
 
+/** A candidate news item to judge for editorial relevance. */
+export interface RelevanceItem {
+  title: string;
+  snippet: string;
+}
+
+export interface RelevanceResult {
+  /** One verdict per input item, in order. */
+  relevant: boolean[];
+  usage: Usage;
+}
+
 /**
  * Provider-neutral synthesis step. The pipeline does the research (fetch +
  * extraction) itself and passes clean material here, so any backend — Claude,
@@ -81,4 +93,9 @@ export interface LLMProvider {
    * Providers without it simply produce no translations (canonical only).
    */
   translate?(req: TranslationRequest): Promise<TranslationResult>;
+  /**
+   * Optional: judge which candidates are on-topic for the site, in one batched
+   * call. Relevance is a judgment, not a similarity — hence the LLM, not embeddings.
+   */
+  filterRelevant?(scope: string, items: RelevanceItem[]): Promise<RelevanceResult>;
 }

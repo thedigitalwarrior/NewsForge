@@ -4,9 +4,10 @@ import type { SearchResult } from "./search/types.js";
 import { getProvider } from "./providers/index.js";
 import { getEmbedder } from "./embeddings/index.js";
 import { buildSignature } from "./signature.js";
-import { clusterIndices, cosine } from "./embeddings/similarity.js";
+import { clusterIndices } from "./embeddings/similarity.js";
 import { classifyCandidate } from "./dedup.js";
 import { loadState, normalizeUrl } from "./state.js";
+import { logUsage } from "./lib/usage.js";
 import { generate } from "./generate.js";
 
 export interface DiscoverOptions {
@@ -19,8 +20,6 @@ export interface DiscoverOptions {
   freshness: string;
   /** Cosine threshold to group candidates into one event (lower = looser). */
   clusterThreshold: number;
-  /** Min cosine to the site topic anchor to keep a candidate (drops off-topic). */
-  minRelevance: number;
   dryRun: boolean;
 }
 
@@ -38,17 +37,19 @@ function hostOf(r: SearchResult): string {
 
 /**
  * Search-driven discovery: run the site's editorial queries, drop off-topic
- * noise (relevance gate), cluster the rest per event, skip what's already
- * covered, and generate one multi-source article per genuinely new event.
+ * items with the LLM relevance filter (a judgment, not a similarity), cluster the
+ * rest per event, skip what's already covered, and generate one multi-source
+ * article per genuinely new event.
  */
 export async function discover(opts: DiscoverOptions): Promise<void> {
   const site = getSite(opts.site);
   const search = getSearchProvider(opts.searchProvider);
+  const llm = getProvider(opts.provider);
   const queries = site.searchQueries.slice(0, opts.maxQueries);
 
   console.log(
     `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" ` +
-      `(freshness=${opts.freshness}, rilevanza≥${opts.minRelevance}, clustering@${opts.clusterThreshold})`,
+      `(freshness=${opts.freshness}, clustering@${opts.clusterThreshold})`,
   );
 
   const seenUrls = new Set<string>();
@@ -79,45 +80,39 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     return;
   }
 
-  const embedder = getEmbedder();
-  const signatures = candidates.map((c) => buildSignature(c.title, c.snippet));
-  // Embed the anchor together with the candidates in one batch.
-  const allEmb = await embedder.embed([
-    site.topicAnchor,
-    ...signatures.map((s) => s.text),
-  ]);
-  const anchorEmb = allEmb[0];
-  const embeddings = allEmb.slice(1);
-  const relevance = embeddings.map((e) => cosine(e, anchorEmb));
+  // Relevance filter (LLM, one batched call). Judgment, not similarity.
+  let keep = candidates.map(() => true);
+  if (llm.filterRelevant) {
+    const res = await llm.filterRelevant(
+      site.editorialScope,
+      candidates.map((c) => ({ title: c.title, snippet: c.snippet })),
+    );
+    keep = res.relevant;
+    logUsage(`${llm.name} · filtro rilevanza`, res.usage);
+  } else {
+    console.warn(`  ⚠️  Il provider "${llm.name}" non filtra la rilevanza: tengo tutto.`);
+  }
 
-  // Relevance gate: keep on-topic candidates.
-  const kept = candidates
-    .map((_, i) => i)
-    .filter((i) => relevance[i] >= opts.minRelevance);
-  const dropped = candidates
-    .map((_, i) => i)
-    .filter((i) => relevance[i] < opts.minRelevance)
-    .sort((a, b) => relevance[b] - relevance[a]);
+  const kept = candidates.map((_, i) => i).filter((i) => keep[i]);
+  const dropped = candidates.map((_, i) => i).filter((i) => !keep[i]);
 
   console.log(
-    `\n📊  ${candidates.length} candidati → ${kept.length} in tema (scartati ${dropped.length} sotto rilevanza ${opts.minRelevance})`,
+    `\n📊  ${candidates.length} candidati → ${kept.length} in tema (scartati ${dropped.length} fuori tema)`,
   );
-
   if (opts.dryRun && dropped.length) {
-    console.log("\n── Scartati per rilevanza (titolo · punteggio) ──");
-    for (const i of dropped) {
-      console.log(`   ${relevance[i].toFixed(2)}  ${candidates[i].title}`);
-    }
+    console.log("\n── Scartati (fuori tema) ──");
+    for (const i of dropped) console.log(`   ✗ ${candidates[i].title}`);
   }
 
   if (kept.length === 0) {
-    console.log("\nNessun candidato in tema. Abbassa --min-relevance o rivedi le query.");
+    console.log("\nNessun candidato in tema. Rivedi le query o l'editorialScope.");
     return;
   }
 
-  // Cluster the kept candidates by event. clusterIndices works on the kept
-  // subset; positions map back to candidate indices via `kept`.
-  const keptEmb = kept.map((i) => embeddings[i]);
+  // Cluster the kept candidates by event.
+  const embedder = getEmbedder();
+  const signatures = candidates.map((c) => buildSignature(c.title, c.snippet));
+  const keptEmb = await embedder.embed(kept.map((i) => signatures[i].text));
   const clusters = clusterIndices(keptEmb, opts.clusterThreshold)
     .map((positions) => positions.map((p) => kept[p]))
     .sort((a, b) => b.length - a.length); // biggest events first
@@ -127,9 +122,11 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     `\n📰  ${kept.length} in tema → ${clusters.length} eventi distinti (${grouped} con più fonti)\n`,
   );
 
-  const llm = getProvider(opts.provider);
-  let produced = 0;
+  // Map candidate index -> its embedding (needed for the history dedup).
+  const embOf = new Map<number, number[]>();
+  kept.forEach((candIdx, p) => embOf.set(candIdx, keptEmb[p]));
 
+  let produced = 0;
   for (const cluster of clusters) {
     if (!opts.dryRun && produced >= opts.maxArticles) break;
 
@@ -141,7 +138,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
 
     const state = await loadState(site.slug);
     const verdict = await classifyCandidate(
-      { signature: signatures[rep], embedding: embeddings[rep] },
+      { signature: signatures[rep], embedding: embOf.get(rep)! },
       state,
       llm,
       undefined,
@@ -150,9 +147,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
 
     const covered = verdict.kind === "duplicate";
     const tag = covered ? `⏭  già coperto (${verdict.score.toFixed(2)})` : "🆕";
-    console.log(
-      `${tag}  [rel ${relevance[rep].toFixed(2)}] [${cluster.length} fonti]  ${label}`,
-    );
+    console.log(`${tag}  [${cluster.length} fonti]  ${label}`);
     if (cluster.length > 1) {
       for (const i of cluster) {
         console.log(`        · ${hostOf(candidates[i])} — ${candidates[i].title}`);

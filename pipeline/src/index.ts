@@ -30,7 +30,6 @@ discover:
   --max-articles <n>     Massimo articoli generati per run       [default: 2]
   --freshness <pd|pw|pm> Finestra temporale                      [default: pd]
   --cluster-threshold <n> Soglia per unire fonti in un evento    [default: 0.78]
-  --min-relevance <n>    Soglia di rilevanza col tema del sito    [default: 0.30]
   --dry-run              Mostra eventi e fonti senza generare
 
 generate:
@@ -64,7 +63,6 @@ async function main(): Promise<void> {
       "max-articles": { type: "string", default: "2" },
       freshness: { type: "string", default: "pd" },
       "cluster-threshold": { type: "string", default: "0.78" },
-      "min-relevance": { type: "string", default: "0.30" },
     },
   });
 
@@ -86,7 +84,6 @@ async function main(): Promise<void> {
         maxArticles: Number(values["max-articles"]),
         freshness: values.freshness ?? "pd",
         clusterThreshold: Number(values["cluster-threshold"]),
-        minRelevance: Number(values["min-relevance"]),
         dryRun: values["dry-run"] ?? false,
       });
       break;

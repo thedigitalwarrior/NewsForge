@@ -8,6 +8,8 @@ import type {
   GenerationResult,
   JudgeResult,
   LLMProvider,
+  RelevanceItem,
+  RelevanceResult,
   TranslationRequest,
   TranslationResult,
 } from "./types.js";
@@ -129,6 +131,52 @@ export function createAnthropicProvider(
         title: out.title,
         description: out.description,
         body: out.body,
+        usage: {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        },
+      };
+    },
+
+    async filterRelevant(
+      scope: string,
+      items: RelevanceItem[],
+    ): Promise<RelevanceResult> {
+      const schema = z.object({
+        results: z.array(
+          z.object({
+            index: z.number().describe("1-based item number"),
+            relevant: z.boolean(),
+          }),
+        ),
+      });
+      const list = items
+        .map(
+          (it, i) =>
+            `${i + 1}. ${it.title} — ${it.snippet.slice(0, 200)}`,
+        )
+        .join("\n");
+      const response = await client.messages.parse({
+        model,
+        max_tokens: 4000,
+        system: `You curate a news site. Decide, for EACH numbered item, whether it is on-topic for this site.\n\nScope:\n${scope}\n\nReturn one verdict per item, by its number.`,
+        output_config: { format: zodOutputFormat(schema), effort: "low" },
+        messages: [{ role: "user", content: list }],
+      });
+      const out = response.parsed_output as {
+        results: { index: number; relevant: boolean }[];
+      } | null;
+      if (!out) throw new Error("Filtro rilevanza: output non valido.");
+
+      // Default missing verdicts to relevant (favor recall; don't silently drop).
+      const relevant = new Array<boolean>(items.length).fill(true);
+      for (const r of out.results) {
+        if (r.index >= 1 && r.index <= items.length) {
+          relevant[r.index - 1] = r.relevant;
+        }
+      }
+      return {
+        relevant,
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,

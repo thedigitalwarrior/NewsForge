@@ -3,6 +3,8 @@ import type {
   GenerationRequest,
   GenerationResult,
   LLMProvider,
+  RelevanceItem,
+  RelevanceResult,
   TranslationRequest,
   TranslationResult,
 } from "./types.js";
@@ -55,6 +57,18 @@ export function createMockProvider(): LLMProvider {
         title: `[mock-translation] ${req.title}`,
         description: `[mock-translation] ${req.description}`,
         body: req.body,
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
+    },
+
+    async filterRelevant(
+      _scope: string,
+      items: RelevanceItem[],
+    ): Promise<RelevanceResult> {
+      // Rough offline heuristic (the real judgment is the anthropic provider's).
+      const kw = /\b(tablet|ipad|galaxy tab|matepad|mediapad|e-ink|eink)\b/i;
+      return {
+        relevant: items.map((it) => kw.test(`${it.title} ${it.snippet}`)),
         usage: { inputTokens: 0, outputTokens: 0 },
       };
     },
