@@ -55,8 +55,9 @@ export const sites: Record<string, SiteDefinition> = {
       "tablet price drop",
     ],
     editorialScope: [
-      "ON TOPIC: news about TABLETS — iPad and iPadOS; Android tablets (Samsung Galaxy Tab, Lenovo, Xiaomi, Huawei MatePad, Honor, Teclast, OnePlus Pad, Moto Pad, etc.); Windows tablets; e-ink/e-paper tablets. Their launches, hardware, software updates, reviews, prices, deals, comparisons, and tablet accessories (keyboards, pens). A story about an app or feature counts only if it is specifically about the tablet experience.",
-      "OFF TOPIC: smartphones and foldable phones (e.g. Galaxy Z Fold, iPhone), smartwatches, laptops and Macs, TVs, generic apps, and anything not primarily about tablets (business, politics, science, world news).",
+      "The site covers TABLET PRODUCT NEWS only. Be strict.",
+      "ON TOPIC: new tablet launches and announcements; tablet hardware and specifications; the tablet's own operating-system/software updates (iPadOS, Android tablet software, HarmonyOS on tablets); tablet hands-on reviews; tablet prices, deals and discounts; tablet buying comparisons; and tablet accessories such as keyboards and styluses. Covered brands: iPad, Samsung Galaxy Tab, Lenovo, Xiaomi, Huawei MatePad, Honor, Teclast, OnePlus Pad, Moto Pad, and e-ink/e-paper tablets.",
+      "OFF TOPIC — exclude even when a tablet is mentioned: smartphones and foldable phones (Galaxy Z Fold, iPhone); smartwatches; laptops and Macs; TVs. Opinion, editorial or 'wishlist' pieces (e.g. 'One app is all Apple needs to make the iPad perfect'). Listicles about services rather than tablets (e.g. best cellular data plans). Non-product stories such as corporate or fleet deployments (e.g. tablets installed on cruise ships) and education or policy stories (e.g. tablets in schools). Third-party app news even when it involves a tablet (e.g. WhatsApp adding iPad features) — this site covers tablets, not apps. Business/finance, politics, science and general world news.",
     ].join(" "),
   },
 };
