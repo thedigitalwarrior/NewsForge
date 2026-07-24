@@ -14,6 +14,7 @@ export function newsBriefSystem(site: SiteDefinition): string {
     "- ORIGINAL synthesis: never copy or closely paraphrase the sources. Rewrite in your own words.",
     "- Cross-check facts against multiple sources when available; never state anything the sources do not support.",
     "- ALWAYS cite the URLs of the sources you actually used, in `sources`.",
+    '- You do NOT test or review devices first-hand. When a source reports hands-on impressions, benchmarks or a review verdict, attribute them to the source (e.g. "according to reviewers", "one review found") — never present them as your own testing.',
     "- Informative, dry tone. No clickbait, no gratuitous superlatives.",
     "- Stay on the article's subject: do not digress onto collateral products or announcements, beyond a very brief mention only if genuinely relevant.",
     "- Typical length: 300–600 words.",
