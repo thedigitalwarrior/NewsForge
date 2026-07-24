@@ -62,15 +62,22 @@ export interface TranslationResult {
   usage: Usage;
 }
 
-/** A candidate news item to judge for editorial relevance. */
-export interface RelevanceItem {
+/** A candidate news item to triage (relevance + event grouping). */
+export interface TriageItem {
   title: string;
   snippet: string;
 }
 
-export interface RelevanceResult {
+export interface TriageVerdict {
+  /** Is the item on-topic for the site? */
+  relevant: boolean;
+  /** Event id: items reporting the SAME news event share the same number. */
+  event: number;
+}
+
+export interface TriageResult {
   /** One verdict per input item, in order. */
-  relevant: boolean[];
+  verdicts: TriageVerdict[];
   usage: Usage;
 }
 
@@ -94,8 +101,9 @@ export interface LLMProvider {
    */
   translate?(req: TranslationRequest): Promise<TranslationResult>;
   /**
-   * Optional: judge which candidates are on-topic for the site, in one batched
-   * call. Relevance is a judgment, not a similarity — hence the LLM, not embeddings.
+   * Optional: in one batched call, judge which candidates are on-topic AND group
+   * them by news event. Both are judgments (not surface similarity), which the LLM
+   * does far better than embeddings — see the discovery notes in decisioni.md.
    */
-  filterRelevant?(scope: string, items: RelevanceItem[]): Promise<RelevanceResult>;
+  triageCandidates?(scope: string, items: TriageItem[]): Promise<TriageResult>;
 }

@@ -29,7 +29,6 @@ discover:
   --per-query <n>        Risultati per query                     [default: 20]
   --max-articles <n>     Massimo articoli generati per run       [default: 2]
   --freshness <pd|pw|pm> Finestra temporale                      [default: pd]
-  --cluster-threshold <n> Soglia per unire fonti in un evento    [default: 0.78]
   --dry-run              Mostra eventi e fonti senza generare
 
 generate:
@@ -62,7 +61,6 @@ async function main(): Promise<void> {
       "per-query": { type: "string", default: "20" },
       "max-articles": { type: "string", default: "2" },
       freshness: { type: "string", default: "pd" },
-      "cluster-threshold": { type: "string", default: "0.78" },
     },
   });
 
@@ -83,7 +81,6 @@ async function main(): Promise<void> {
         perQuery: Number(values["per-query"]),
         maxArticles: Number(values["max-articles"]),
         freshness: values.freshness ?? "pd",
-        clusterThreshold: Number(values["cluster-threshold"]),
         dryRun: values["dry-run"] ?? false,
       });
       break;

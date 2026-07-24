@@ -3,8 +3,8 @@ import type {
   GenerationRequest,
   GenerationResult,
   LLMProvider,
-  RelevanceItem,
-  RelevanceResult,
+  TriageItem,
+  TriageResult,
   TranslationRequest,
   TranslationResult,
 } from "./types.js";
@@ -61,14 +61,18 @@ export function createMockProvider(): LLMProvider {
       };
     },
 
-    async filterRelevant(
+    async triageCandidates(
       _scope: string,
-      items: RelevanceItem[],
-    ): Promise<RelevanceResult> {
-      // Rough offline heuristic (the real judgment is the anthropic provider's).
+      items: TriageItem[],
+    ): Promise<TriageResult> {
+      // Rough offline heuristic: keyword relevance, each item its own event
+      // (no semantic grouping — the real judgment is the anthropic provider's).
       const kw = /\b(tablet|ipad|galaxy tab|matepad|mediapad|e-ink|eink)\b/i;
       return {
-        relevant: items.map((it) => kw.test(`${it.title} ${it.snippet}`)),
+        verdicts: items.map((it, i) => ({
+          relevant: kw.test(`${it.title} ${it.snippet}`),
+          event: i,
+        })),
         usage: { inputTokens: 0, outputTokens: 0 },
       };
     },

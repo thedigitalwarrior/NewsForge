@@ -197,6 +197,23 @@ Lingue non-latine (cinese/giapponese) e RTL (arabo) rimandate: il limite non è 
 dell'LLM ma la **verificabilità** (non poter rileggere) e la complessità di layout.
 Scelta lingue iniziali motivata dalle più parlate a scrittura latina, verificabili e senza RTL.
 
+## 2026-07 — Rilevanza e raggruppamento eventi affidati all'LLM (non agli embedding)
+Lezione emersa dai dati reali della scoperta: **gli embedding sono lo strumento sbagliato per i
+giudizi editoriali**. Confrontando la similarità coseno con un'àncora tematica, il gate a
+embedding teneva un *telefono* pieghevole (Galaxy Z Fold, lessicalmente vicino a "Galaxy Tab") e
+scartava un tablet vero (Moto Pad); e nel clustering non univa la stessa notizia con titoli
+diversi/lingue diverse (9 articoli WhatsApp-iPad sparsi in più gruppi). Motivo: gli embedding
+colgono la **somiglianza di superficie**, non il **senso**.
+Decisione: **rilevanza** ("è in tema per il sito?") e **raggruppamento per evento** ("questi
+sono la stessa notizia?") sono **giudizi**, quindi li fa l'**LLM**, in **una sola chiamata di
+triage batched** (`triageCandidates`): per ogni candidato → `relevant` + `event` (id condiviso
+tra articoli dello stesso evento). Costo ~1-2 cent per run. Gli **embedding restano** solo per
+ciò in cui sono bravi: il **dedup veloce** del rappresentante di ogni cluster contro l'indice
+storico (fast path), col giudice LLM nella fascia grigia. `editorialScope` (prosa per sito) è la
+linea editoriale leggibile che guida la triage; si affina a parole, senza toccare il codice.
+È lo stesso principio già applicato al giudice del dedup: **LLM per i giudizi, embedding per le
+similarità**.
+
 ## 2026-07 — Scoperta via ricerca con Brave (astrazione SearchProvider)
 Le fonti non sono una lista fissa di feed (renderebbe i siti **cloni** di 2-3 testate e non
 coprirebbe il grosso delle notizie): la scoperta avviene **interrogando un motore di ricerca**

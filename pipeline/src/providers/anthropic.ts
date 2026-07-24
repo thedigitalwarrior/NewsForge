@@ -8,8 +8,8 @@ import type {
   GenerationResult,
   JudgeResult,
   LLMProvider,
-  RelevanceItem,
-  RelevanceResult,
+  TriageItem,
+  TriageResult,
   TranslationRequest,
   TranslationResult,
 } from "./types.js";
@@ -138,45 +138,48 @@ export function createAnthropicProvider(
       };
     },
 
-    async filterRelevant(
+    async triageCandidates(
       scope: string,
-      items: RelevanceItem[],
-    ): Promise<RelevanceResult> {
+      items: TriageItem[],
+    ): Promise<TriageResult> {
       const schema = z.object({
         results: z.array(
           z.object({
             index: z.number().describe("1-based item number"),
-            relevant: z.boolean(),
+            relevant: z.boolean().describe("Is it on-topic for the site?"),
+            event: z
+              .number()
+              .describe(
+                "Event group id: items reporting the SAME specific news event share the same number; different events get different numbers",
+              ),
           }),
         ),
       });
       const list = items
-        .map(
-          (it, i) =>
-            `${i + 1}. ${it.title} — ${it.snippet.slice(0, 200)}`,
-        )
+        .map((it, i) => `${i + 1}. ${it.title} — ${it.snippet.slice(0, 200)}`)
         .join("\n");
       const response = await client.messages.parse({
         model,
-        max_tokens: 4000,
-        system: `You curate a news site. Decide, for EACH numbered item, whether it is on-topic for this site.\n\nScope:\n${scope}\n\nReturn one verdict per item, by its number.`,
-        output_config: { format: zodOutputFormat(schema), effort: "low" },
+        max_tokens: 6000,
+        system: `You triage search results for a news site. For EACH numbered item decide two things:\n1. relevant — is it on-topic for this site?\n2. event — an integer that groups items reporting the SAME specific news event (same launch, same announcement). Items about the same event MUST share the same event number; genuinely different events get different numbers. Different products, or the same product but a different event, are different events. For irrelevant items the event number is ignored.\n\nSite scope:\n${scope}\n\nReturn exactly one verdict per item, identified by its number.`,
+        thinking: { type: "adaptive" },
+        output_config: { format: zodOutputFormat(schema), effort: "medium" },
         messages: [{ role: "user", content: list }],
       });
       const out = response.parsed_output as {
-        results: { index: number; relevant: boolean }[];
+        results: { index: number; relevant: boolean; event: number }[];
       } | null;
-      if (!out) throw new Error("Filtro rilevanza: output non valido.");
+      if (!out) throw new Error("Triage candidati: output non valido.");
 
-      // Default missing verdicts to relevant (favor recall; don't silently drop).
-      const relevant = new Array<boolean>(items.length).fill(true);
+      // Default missing verdicts to relevant + own singleton event.
+      const verdicts = items.map((_, i) => ({ relevant: true, event: -(i + 1) }));
       for (const r of out.results) {
         if (r.index >= 1 && r.index <= items.length) {
-          relevant[r.index - 1] = r.relevant;
+          verdicts[r.index - 1] = { relevant: r.relevant, event: r.event };
         }
       }
       return {
-        relevant,
+        verdicts,
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,

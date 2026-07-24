@@ -4,7 +4,6 @@ import type { SearchResult } from "./search/types.js";
 import { getProvider } from "./providers/index.js";
 import { getEmbedder } from "./embeddings/index.js";
 import { buildSignature } from "./signature.js";
-import { clusterIndices } from "./embeddings/similarity.js";
 import { classifyCandidate } from "./dedup.js";
 import { loadState, normalizeUrl } from "./state.js";
 import { logUsage } from "./lib/usage.js";
@@ -18,8 +17,6 @@ export interface DiscoverOptions {
   maxArticles: number;
   perQuery: number;
   freshness: string;
-  /** Cosine threshold to group candidates into one event (lower = looser). */
-  clusterThreshold: number;
   dryRun: boolean;
 }
 
@@ -36,10 +33,11 @@ function hostOf(r: SearchResult): string {
 }
 
 /**
- * Search-driven discovery: run the site's editorial queries, drop off-topic
- * items with the LLM relevance filter (a judgment, not a similarity), cluster the
- * rest per event, skip what's already covered, and generate one multi-source
- * article per genuinely new event.
+ * Search-driven discovery. Both editorial judgments — is this on-topic, and which
+ * items are the same event — are done by the LLM in one batched triage call
+ * (embeddings conflate surface features and get both wrong). Embeddings are used
+ * only for the cheap dedup fast path against the covered index. Then one
+ * multi-source article is generated per genuinely new event.
  */
 export async function discover(opts: DiscoverOptions): Promise<void> {
   const site = getSite(opts.site);
@@ -48,8 +46,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
   const queries = site.searchQueries.slice(0, opts.maxQueries);
 
   console.log(
-    `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" ` +
-      `(freshness=${opts.freshness}, clustering@${opts.clusterThreshold})`,
+    `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" (freshness=${opts.freshness})`,
   );
 
   const seenUrls = new Set<string>();
@@ -80,21 +77,20 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     return;
   }
 
-  // Relevance filter (LLM, one batched call). Judgment, not similarity.
-  let keep = candidates.map(() => true);
-  if (llm.filterRelevant) {
-    const res = await llm.filterRelevant(
-      site.editorialScope,
-      candidates.map((c) => ({ title: c.title, snippet: c.snippet })),
+  // LLM triage: relevance + event grouping in one call.
+  if (!llm.triageCandidates) {
+    throw new Error(
+      `Il provider "${llm.name}" non sa fare la triage: usa un provider che la implementa.`,
     );
-    keep = res.relevant;
-    logUsage(`${llm.name} · filtro rilevanza`, res.usage);
-  } else {
-    console.warn(`  ⚠️  Il provider "${llm.name}" non filtra la rilevanza: tengo tutto.`);
   }
+  const triage = await llm.triageCandidates(
+    site.editorialScope,
+    candidates.map((c) => ({ title: c.title, snippet: c.snippet })),
+  );
+  logUsage(`${llm.name} · triage`, triage.usage);
 
-  const kept = candidates.map((_, i) => i).filter((i) => keep[i]);
-  const dropped = candidates.map((_, i) => i).filter((i) => !keep[i]);
+  const kept = candidates.map((_, i) => i).filter((i) => triage.verdicts[i].relevant);
+  const dropped = candidates.map((_, i) => i).filter((i) => !triage.verdicts[i].relevant);
 
   console.log(
     `\n📊  ${candidates.length} candidati → ${kept.length} in tema (scartati ${dropped.length} fuori tema)`,
@@ -109,27 +105,33 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
     return;
   }
 
-  // Cluster the kept candidates by event.
-  const embedder = getEmbedder();
-  const signatures = candidates.map((c) => buildSignature(c.title, c.snippet));
-  const keptEmb = await embedder.embed(kept.map((i) => signatures[i].text));
-  const clusters = clusterIndices(keptEmb, opts.clusterThreshold)
-    .map((positions) => positions.map((p) => kept[p]))
-    .sort((a, b) => b.length - a.length); // biggest events first
+  // Group kept candidates by the LLM-assigned event id.
+  const byEvent = new Map<number, number[]>();
+  for (const i of kept) {
+    const e = triage.verdicts[i].event;
+    const arr = byEvent.get(e);
+    if (arr) arr.push(i);
+    else byEvent.set(e, [i]);
+  }
+  const clusters = [...byEvent.values()].sort((a, b) => b.length - a.length);
 
   const grouped = clusters.filter((c) => c.length > 1).length;
   console.log(
     `\n📰  ${kept.length} in tema → ${clusters.length} eventi distinti (${grouped} con più fonti)\n`,
   );
 
-  // Map candidate index -> its embedding (needed for the history dedup).
-  const embOf = new Map<number, number[]>();
-  kept.forEach((candIdx, p) => embOf.set(candIdx, keptEmb[p]));
+  // Embeddings only for the dedup fast path (rep signature per cluster).
+  const embedder = getEmbedder();
+  const repSignatures = clusters.map((c) =>
+    buildSignature(candidates[c[0]].title, candidates[c[0]].snippet),
+  );
+  const repEmbeddings = await embedder.embed(repSignatures.map((s) => s.text));
 
   let produced = 0;
-  for (const cluster of clusters) {
+  for (let ci = 0; ci < clusters.length; ci++) {
     if (!opts.dryRun && produced >= opts.maxArticles) break;
 
+    const cluster = clusters[ci];
     const rep = cluster[0];
     const label = candidates[rep].title;
     const urls = cluster
@@ -138,7 +140,7 @@ export async function discover(opts: DiscoverOptions): Promise<void> {
 
     const state = await loadState(site.slug);
     const verdict = await classifyCandidate(
-      { signature: signatures[rep], embedding: embOf.get(rep)! },
+      { signature: repSignatures[ci], embedding: repEmbeddings[ci] },
       state,
       llm,
       undefined,
