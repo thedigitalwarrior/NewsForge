@@ -39,17 +39,45 @@ export function createOpenAICompatibleProvider(
     schema: z.ZodType,
     maxTokens: number,
   ): Promise<{ data: T; usage: Usage }> {
-    const jsonSchema = JSON.stringify(z.toJSONSchema(schema));
-    const sys = `${system}\n\nRespond with ONLY a JSON object conforming to this JSON Schema. No prose, no markdown fences.\nJSON Schema:\n${jsonSchema}`;
-    const completion = await client.chat.completions.create({
-      model: o.model,
-      max_tokens: maxTokens,
-      messages: [
-        { role: "system", content: sys },
-        { role: "user", content: user },
-      ],
-      response_format: { type: "json_object" },
-    });
+    const jsonSchema = z.toJSONSchema(schema) as Record<string, unknown>;
+    const sys = `${system}\n\nRespond with ONLY a JSON object conforming to this JSON Schema. No prose, no markdown fences.\nJSON Schema:\n${JSON.stringify(jsonSchema)}`;
+    const messages = [
+      { role: "system" as const, content: sys },
+      { role: "user" as const, content: user },
+    ];
+
+    // Prefer schema-constrained decoding (local servers turn the schema into a
+    // grammar → near-perfect JSON). Fall back for servers that don't support it.
+    const formats = [
+      {
+        type: "json_schema" as const,
+        json_schema: { name: "result", schema: jsonSchema },
+      },
+      { type: "json_object" as const },
+      undefined,
+    ];
+
+    let completion;
+    let lastErr: unknown;
+    for (const response_format of formats) {
+      try {
+        completion = await client.chat.completions.create({
+          model: o.model,
+          max_tokens: maxTokens,
+          messages,
+          ...(response_format ? { response_format } : {}),
+        });
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (!completion) {
+      throw new Error(
+        `${o.name}: richiesta fallita — ${(lastErr as Error)?.message ?? "errore sconosciuto"}`,
+      );
+    }
+
     let content = completion.choices[0]?.message?.content ?? "";
     content = content
       .trim()
