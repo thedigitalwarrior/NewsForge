@@ -28,8 +28,27 @@ export function createAnthropicProvider(
   opts: AnthropicProviderOptions = {},
 ): LLMProvider {
   const model = opts.model ?? process.env.PIPELINE_MODEL ?? "claude-sonnet-5";
-  // Constructor resolves ANTHROPIC_API_KEY from the environment when apiKey is unset.
-  const client = new Anthropic(opts.apiKey ? { apiKey: opts.apiKey } : {});
+
+  /*
+   * Auth, in precedence order:
+   *  1. explicit apiKey / ANTHROPIC_API_KEY (resolved by the SDK itself)
+   *  2. an OAuth access token — either ANTHROPIC_AUTH_TOKEN or the one produced
+   *     by `claude setup-token` (CLAUDE_CODE_OAUTH_TOKEN, which the SDK does not
+   *     read on its own). OAuth tokens go on Authorization: Bearer AND require
+   *     the oauth beta header.
+   *  3. otherwise the SDK falls back to an `ant auth login` profile.
+   */
+  const oauthToken =
+    process.env.ANTHROPIC_AUTH_TOKEN ?? process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  const client =
+    opts.apiKey || process.env.ANTHROPIC_API_KEY
+      ? new Anthropic(opts.apiKey ? { apiKey: opts.apiKey } : {})
+      : oauthToken
+        ? new Anthropic({
+            authToken: oauthToken,
+            defaultHeaders: { "anthropic-beta": "oauth-2025-04-20" },
+          })
+        : new Anthropic();
 
   return {
     name: `anthropic:${model}`,

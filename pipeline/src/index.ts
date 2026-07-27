@@ -20,6 +20,7 @@ try {
 for (const key of [
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_OAUTH_TOKEN",
   "OPENAI_API_KEY",
 ]) {
   if (process.env[key] !== undefined && process.env[key]!.trim() === "") {
