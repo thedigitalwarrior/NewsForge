@@ -14,6 +14,19 @@ try {
   // env can also come from the real environment
 }
 
+// An empty auth variable still outranks an `ant auth login` OAuth profile in the
+// SDK's credential chain (and authenticates with an empty key). Drop blanks so a
+// commented-out/empty entry in .env doesn't shadow the profile.
+for (const key of [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "OPENAI_API_KEY",
+]) {
+  if (process.env[key] !== undefined && process.env[key]!.trim() === "") {
+    delete process.env[key];
+  }
+}
+
 const USAGE = `Uso: <comando> [opzioni]
 
 Comandi:
