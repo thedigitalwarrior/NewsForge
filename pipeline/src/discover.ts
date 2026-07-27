@@ -61,6 +61,7 @@ export async function discover(
       count: opts.perQuery,
       freshness: opts.freshness,
       lang: site.canonicalLocale,
+      country: site.searchCountry,
     });
     usedQueries++;
     let added = 0;

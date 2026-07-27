@@ -18,6 +18,11 @@ export interface SiteDefinition {
    */
   searchQueries: string[];
   /**
+   * Country bias for the search engine (ISO code). Cuts regional SEO filler at
+   * the source, before it even reaches the triage.
+   */
+  searchCountry: string;
+  /**
    * Editorial scope, in prose, for the LLM relevance filter: what belongs on this
    * site and what does not. This is a judgment call, so it's the LLM's job — not
    * embedding similarity, which conflates surface features (a foldable *phone*
@@ -54,10 +59,12 @@ export const sites: Record<string, SiteDefinition> = {
       "e-ink tablet",
       "tablet price drop",
     ],
+    searchCountry: "us",
     editorialScope: [
       "The site covers TABLET PRODUCT NEWS only. Be strict.",
       "ON TOPIC: new tablet launches and announcements; tablet hardware and specifications; the tablet's own operating-system/software updates (iPadOS, Android tablet software, HarmonyOS on tablets); tablet hands-on reviews; tablet prices, deals and discounts; tablet buying comparisons; and tablet accessories such as keyboards and styluses. Covered brands: iPad, Samsung Galaxy Tab, Lenovo, Xiaomi, Huawei MatePad, Honor, Teclast, OnePlus Pad, Moto Pad, and e-ink/e-paper tablets.",
       "OFF TOPIC — exclude even when a tablet is mentioned: smartphones and foldable phones (Galaxy Z Fold, iPhone); smartwatches; laptops and Macs; TVs. Opinion, editorial or 'wishlist' pieces (e.g. 'One app is all Apple needs to make the iPad perfect'). Listicles about services rather than tablets (e.g. best cellular data plans). Non-product stories such as corporate or fleet deployments (e.g. tablets installed on cruise ships) and education or policy stories (e.g. tablets in schools). Third-party app news even when it involves a tablet (e.g. WhatsApp adding iPad features) — this site covers tablets, not apps. Business/finance, politics, science and general world news.",
+      "ALSO EXCLUDE generic SEO round-ups: evergreen 'best/cheapest N tablets' or 'top N tablets for students/work' listicles with no news peg, and articles built around one country's local pricing or availability. A comparison qualifies only if it is tied to a specific, recent development (a launch, a price change, a new model) rather than an undated shopping list.",
     ].join(" "),
   },
 };
