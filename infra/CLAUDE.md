@@ -24,6 +24,19 @@ produzione condividono gli stessi ruoli: differiscono solo per `host_vars`/`grou
 - `pipeline` — checkout pipeline, .env da vault, systemd timer per i run schedulati.
 - `backup` — WireGuard verso casa + job vzdump/PBS (lato Proxmox; da definire in fase 7+).
 
+## Esecuzione da WSL (trappola nota)
+
+Il repo vive su `/mnt/d/...`, che WSL espone come cartella "world writable": in quel caso
+Ansible **ignora** `ansible.cfg`, quindi non carica l'inventory e il playbook non trova host
+(`no hosts matched`, `PLAY RECAP` vuoto). Serve indicare la config esplicitamente:
+
+```bash
+export ANSIBLE_CONFIG=/mnt/d/AI/Vibe/Claude/NewsForge/infra/ansible.cfg
+```
+
+Conviene metterlo in `~/.bashrc` una volta per tutte. Il warning "world writable directory"
+resta visibile ma è innocuo.
+
 ## Convenzioni
 
 - Secrets SOLO in Ansible Vault (`group_vars/*/vault.yml`), mai in chiaro nel repo.
