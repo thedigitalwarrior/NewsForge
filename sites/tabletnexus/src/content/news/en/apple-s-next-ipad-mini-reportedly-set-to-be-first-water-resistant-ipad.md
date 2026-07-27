@@ -7,7 +7,7 @@ sources:
   - "https://macrumors.com/2026/07/25/first-water-resistant-ipad"
   - "https://www.gizchina.com/apple/apples-next-ipad-mini-could-be-its-first-water-resistant-tablet"
   - "https://trustedreviews.com/news/its-not-just-an-oled-upgrade-the-next-ipad-mini-set-for-a-series-first"
-draft: true
+draft: false
 ---
 
 Apple is preparing to launch a redesigned iPad mini later this year that would mark the first time an iPad has offered official water resistance, according to a report from Bloomberg's Mark Gurman. The tablet is reportedly on track to arrive by October.
