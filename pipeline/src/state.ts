@@ -48,11 +48,24 @@ export async function saveState(site: string, state: SiteState): Promise<void> {
   await writeFile(stateFile(site), JSON.stringify(payload, null, 2) + "\n", "utf8");
 }
 
-/** Normalize a URL for comparison (drop hash, trim). */
+/**
+ * Normalize a URL for comparison: drop the fragment, lowercase the host, strip a
+ * leading "www." and any trailing slash, and remove common tracking parameters.
+ * Without this the same article counts twice (e.g. example.com vs www.example.com).
+ */
+const TRACKING_PARAMS = /^(utm_|fbclid$|gclid$|mc_|ref$|srsltid$)/i;
+
 export function normalizeUrl(raw: string): string {
   try {
-    const url = new URL(raw);
+    const url = new URL(raw.trim());
     url.hash = "";
+    url.hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    for (const key of [...url.searchParams.keys()]) {
+      if (TRACKING_PARAMS.test(key)) url.searchParams.delete(key);
+    }
+    if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.replace(/\/+$/, "");
+    }
     return url.toString();
   } catch {
     return raw.trim();
