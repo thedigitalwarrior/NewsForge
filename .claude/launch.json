@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "freegamersworld-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "--workspace", "sites/freegamersworld"],
+      "port": 4321
+    },
+    {
+      "name": "tabletnexus-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "--workspace", "sites/tabletnexus"],
+      "port": 4322
+    }
+  ]
+}

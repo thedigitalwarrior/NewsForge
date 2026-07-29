@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "sites/_shared",
-    "sites/tabletnexus",
+    "sites/*",
     "pipeline"
   ],
   "scripts": {

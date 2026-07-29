@@ -1,6 +1,7 @@
 ---
-# Playbook principale. Per ora applica solo il ruolo base; crescerà con
-# node -> caddy -> deploy -> pipeline man mano che li verifichiamo su `local`.
+# Playbook principale: base -> node -> caddy -> deploy, verificati su `local`.
+# Multi-sito: i ruoli caddy e deploy ciclano sulla lista `sites` (group_vars),
+# quindi aggiungere un sito è una voce di dati, non codice nuovo.
 - name: Provisioning della rete NewsForge
   hosts: local
   become: true

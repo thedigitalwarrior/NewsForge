@@ -68,6 +68,35 @@ export const sites: Record<string, SiteDefinition> = {
       "ALSO EXCLUDE advertorial / promotional 'bargain' posts that push a single budget tablet as a great deal, typically with local non-USD pricing (e.g. Rp, ₹, IDR) and clickbait phrasing ('No need to buy an expensive laptop', 'Cheap but powerful'). These are affiliate/SEO content, not news. Genuine price NEWS — an official price cut, or the launch price of a notable model — is fine; a shopping-advice bargain post is not.",
     ].join(" "),
   },
+  freegamersworld: {
+    slug: "freegamersworld",
+    name: "FreeGamersWorld",
+    canonicalLocale: "en",
+    targetLocales: ["it"],
+    categories: ["news", "epic", "steam", "gog", "prime"],
+    defaultSourceHints: [
+      "store.epicgames.com/en-US/free-games",
+      "store.steampowered.com",
+      "gog.com",
+      "gaming.amazon.com",
+      "pcgamer.com",
+    ],
+    searchQueries: [
+      "free game epic games store",
+      "steam free to keep limited time",
+      "GOG free game giveaway",
+      "prime gaming free games",
+      "free PC game giveaway claim",
+      "free game keep forever",
+    ],
+    searchCountry: "us",
+    editorialScope: [
+      "The site covers PC GAMES THAT ARE BEING GIVEN AWAY FOR FREE (or 'free to keep' for a limited time) on the Epic Games Store, Steam, GOG and Amazon Prime Gaming. Be strict.",
+      "ON TOPIC: a specific game made free to claim/keep on one of those stores (with a claim window); an announced upcoming free giveaway; a notable free-game news item such as a store changing how its free games work. Always about a concrete title or a concrete giveaway, tied to a claim deadline.",
+      "OFF TOPIC — exclude even when a game is mentioned: paid games merely on SALE or discounted (a price cut is not a free giveaway); permanently free-to-play titles (they never expire, so there is no claim window and it isn't news); game reviews, previews, guides, tier lists and general gaming news; hardware, consoles and accessories; esports; deals on subscriptions or gift cards; mobile in-app 'free' items. General world, business and tech news.",
+      "ALSO EXCLUDE generic SEO round-ups ('best free games to play right now', 'top N free-to-play games') with no specific new giveaway and no claim deadline.",
+    ].join(" "),
+  },
 };
 
 export function getSite(slug: string): SiteDefinition {

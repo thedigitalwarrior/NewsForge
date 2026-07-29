@@ -113,8 +113,10 @@ ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
 4. ✅ Ricerca (Pagefind), RSS, sitemap, SEO base
 5. ✅ Pipeline v1: un articolo generato da fonti reali, qualità iterata sui prompt
 6. ✅ Pipeline v2: dedup notizie, coda di revisione (draft → publish). Scheduling (timer) → fase 7.
-7. ⬜ Infra: playbook contro VM locale Debian 12, poi multi-sito
-8. ⬜ Secondo sito news (freegamersworld): deve costare ore, non giorni
+7. 🚧 Infra: playbook contro VM locale Debian 12 ✅; multi-sito ✅ (caddy/deploy ciclano su
+   lista `sites`). Manca il go-live su SeFlow (prod) — rimandato finché il server non c'è.
+8. 🚧 Secondo sito news (freegamersworld): scaffold + seed + config pipeline/infra fatti;
+   resta da generare contenuti reali via pipeline e provarlo sulla VM.
 9. ⬜ Rollout siti news restanti (roboticfoundry, fasterthanspace) + buildyournas (variante guide)
 10. ⬜ playbox75: progetto dedicato (catalogo giochi HTML5, licenze embed) — DOPO che la rete news è a regime
 11. ⬜ Go-live su server SeFlow (può avvenire anche prima del punto 10, per i soli siti pronti)

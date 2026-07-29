@@ -1,0 +1,39 @@
+---
+import type { GetStaticPaths } from "astro";
+import BaseLayout from "@shared/layouts/BaseLayout.astro";
+import ArticleCard from "@shared/components/ArticleCard.astro";
+import { getVisibleNews } from "@shared/lib/news";
+import { locales, type Locale } from "@shared/i18n/config";
+import { homeUrl } from "@shared/i18n/routes";
+import { useTranslations } from "@shared/i18n/ui";
+import { site } from "../../config/site";
+
+export const getStaticPaths = (async () => {
+  return locales.map((lang) => ({ params: { lang } }));
+}) satisfies GetStaticPaths;
+
+const lang = Astro.params.lang as Locale;
+const posts = await getVisibleNews(lang);
+const [lead, ...rest] = posts;
+const t = useTranslations(lang);
+
+const alternates: Partial<Record<Locale, string>> = {};
+for (const l of locales) alternates[l] = homeUrl(l);
+---
+
+<BaseLayout
+  site={site}
+  lang={lang}
+  title={site.name}
+  suffixSiteName={false}
+  alternates={alternates}
+>
+  <div class="mx-auto max-w-5xl px-4 py-10">
+    <h1 class="sr-only">{site.name} — {site.tagline[lang]}</h1>
+    <h2 class="mb-6 text-2xl font-bold">{t("home.latest")}</h2>
+    <section class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {lead && <ArticleCard post={lead} lang={lang} site={site} featured />}
+      {rest.map((post) => <ArticleCard post={post} lang={lang} site={site} />)}
+    </section>
+  </div>
+</BaseLayout>

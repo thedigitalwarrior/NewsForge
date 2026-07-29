@@ -21,8 +21,11 @@ produzione condividono gli stessi ruoli: differiscono solo per `host_vars`/`grou
 - `node` — Node.js LTS (per le build Astro) + pnpm/npm.
 - `deploy` — utente deploy, repo git bare + hook post-receive: build Astro + pagefind →
   docroot per dominio.
-- `pipeline` — checkout pipeline, .env da vault, systemd timer per i run schedulati.
 - `backup` — WireGuard verso casa + job vzdump/PBS (lato Proxmox; da definire in fase 7+).
+
+> **Nota:** un ruolo `pipeline` (checkout + systemd timer sul server) era previsto ma è
+> **decaduto**: la pipeline gira sulla macchina locale di Stefano con run manuali (vedi
+> `docs/decisioni.md`), non sul server. Il server fa solo serving.
 
 ## Esecuzione da WSL (trappola nota)
 

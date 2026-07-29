@@ -11,3 +11,6 @@ sites:
   - slug: tabletnexus
     address: "http://tabletnexus.test"
     root: /var/www/tabletnexus
+  - slug: freegamersworld
+    address: "http://freegamersworld.test"
+    root: /var/www/freegamersworld
