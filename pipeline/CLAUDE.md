@@ -20,10 +20,12 @@ consuma il credito SDK mensile del piano e poi eventuale pay-as-you-go. Quindi:
 
 ## Architettura (v1)
 
-**Provider-agnostica.** Il codice non dipende da un SDK LLM specifico: c'è un'interfaccia
-`LLMProvider` (`src/providers/types.ts`) e adapter concreti. Oggi: `anthropic` (Claude via
-`@anthropic-ai/sdk`, Sonnet 5) e `mock` (offline, per test senza chiave né costi). OpenAI o un
-LLM locale = un nuovo file che implementa l'interfaccia + una riga in `src/providers/index.ts`.
+**Provider-agnostica, per-ruolo.** Il codice non dipende da un SDK LLM specifico: c'è
+un'interfaccia `LLMProvider` (`src/providers/types.ts`) e adapter concreti: `anthropic`
+(Claude via `@anthropic-ai/sdk`, Sonnet 5), `openai` e `local` (adapter OpenAI-compatibile,
+Ollama/LM Studio), `mock` (offline, per test senza chiave né costi). Ogni ruolo (triage/judge/
+generate/translate) sceglie il proprio provider da `.env` (`PIPELINE_PROVIDER_<RUOLO>`, con
+`--provider` che li forza tutti). Vedi `docs/decisioni.md`.
 
 **La ricerca è locale, non del modello.** La pipeline recupera le fonti (`--url`), estrae il
 testo con `src/research/fetch.ts` (fetch + cheerio) e passa solo il materiale utile al modello,
@@ -44,6 +46,9 @@ qualunque backend — anche un LLM locale senza web search — e rispetta il vin
 - `src/embeddings/` — embedder locale (transformers.js, CPU, offline) + cosine/clustering.
 - `src/signature.ts` — costruisce la firma evento (titolo + lead) da embeddare.
 - `src/publish.ts` — coda di revisione: `review` (elenca stato) e `publish` (draft:true→false).
+- `src/console/` — console web LOCALE (`npm run console`, o doppio click su `console.cmd` in
+  root): coda di revisione, pubblicazione, scoperta con output live, commit+push. Server HTTP
+  su `127.0.0.1:4455` (solo built-in Node). Il deploy resta manuale (mostrato, non eseguito).
 
 ## Flusso di un run (`generate`)
 

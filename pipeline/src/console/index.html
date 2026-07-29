@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NewsForge · Console contenuti</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --panel2: #334155;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #7c3aed;
+        --accent2: #0ea5e9;
+        --ok: #22c55e;
+        --warn: #f59e0b;
+        --border: #334155;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 24px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      header h1 { font-size: 17px; margin: 0; font-weight: 700; }
+      header .badge {
+        font-size: 12px; color: var(--muted); border: 1px solid var(--border);
+        padding: 2px 8px; border-radius: 999px;
+      }
+      select, button, input {
+        font: inherit; color: var(--text); background: var(--panel2);
+        border: 1px solid var(--border); border-radius: 8px; padding: 7px 11px;
+      }
+      button { cursor: pointer; background: var(--panel2); }
+      button:hover { border-color: var(--accent2); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      button.primary:hover { filter: brightness(1.1); }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      main { max-width: 1000px; margin: 0 auto; padding: 24px; display: grid; gap: 20px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+      .card h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .article { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+      .article:first-of-type { border-top: none; }
+      .article .meta { flex: 1; min-width: 0; }
+      .article .title { font-weight: 600; }
+      .article .sub { font-size: 12.5px; color: var(--muted); }
+      .tag { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); }
+      .tag.draft { color: var(--warn); border-color: var(--warn); }
+      .tag.live { color: var(--ok); border-color: var(--ok); }
+      .muted { color: var(--muted); }
+      pre.output {
+        background: #0b1220; border: 1px solid var(--border); border-radius: 8px;
+        padding: 12px; overflow: auto; max-height: 340px; font-size: 12.5px;
+        white-space: pre-wrap; word-break: break-word; margin: 12px 0 0;
+      }
+      code.cmd { background: #0b1220; border: 1px solid var(--border); padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+      dialog {
+        background: var(--panel); color: var(--text); border: 1px solid var(--border);
+        border-radius: 12px; max-width: 720px; width: 92%;
+      }
+      dialog::backdrop { background: rgba(0,0,0,.6); }
+      label small { display: block; color: var(--muted); font-size: 11.5px; }
+      .field { display: flex; flex-direction: column; gap: 4px; }
+      a { color: var(--accent2); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🔨 NewsForge <span class="muted">· Console contenuti</span></h1>
+      <span class="badge">solo locale</span>
+      <div style="flex:1"></div>
+      <label class="row" style="gap:6px">Sito
+        <select id="site"></select>
+      </label>
+    </header>
+
+    <main>
+      <!-- Coda di revisione -->
+      <section class="card">
+        <h2>Coda di revisione</h2>
+        <div id="articles"><p class="muted">Carico…</p></div>
+      </section>
+
+      <!-- Scopri notizie -->
+      <section class="card">
+        <h2>Scopri notizie</h2>
+        <div class="row">
+          <div class="field"><label>Freschezza</label>
+            <select id="freshness">
+              <option value="pd">Ultimo giorno</option>
+              <option value="pw" selected>Ultima settimana</option>
+              <option value="pm">Ultimo mese</option>
+            </select>
+          </div>
+          <div class="field"><label>Query</label>
+            <input id="maxQueries" type="number" min="1" max="8" value="2" style="width:80px" />
+          </div>
+          <div class="field"><label>Max articoli</label>
+            <input id="maxArticles" type="number" min="1" max="10" value="2" style="width:80px" />
+          </div>
+          <div class="field"><label>&nbsp;</label>
+            <label class="row" style="gap:6px"><input type="checkbox" id="dryRun" /> Anteprima (non genera)</label>
+          </div>
+          <div class="field"><label>&nbsp;</label>
+            <button class="primary" id="runDiscover">▶ Avvia scoperta</button>
+          </div>
+        </div>
+        <pre class="output" id="discoverOut" hidden></pre>
+      </section>
+
+      <!-- Pubblica online -->
+      <section class="card">
+        <h2>Pubblica online</h2>
+        <div class="row">
+          <button id="gitRefresh">↻ Cosa cambierà</button>
+          <button class="primary" id="gitCommit">⬆ Commit + push</button>
+        </div>
+        <pre class="output" id="gitOut" hidden></pre>
+        <p class="muted" style="margin-top:14px">
+          Deploy sulla VM (manuale, da WSL):
+          <code class="cmd">cd /mnt/d/AI/Vibe/Claude/NewsForge/infra &amp;&amp; ansible-playbook site.yml -K</code>
+        </p>
+      </section>
+
+      <!-- Anteprima sito -->
+      <section class="card">
+        <h2>Anteprima sito</h2>
+        <div class="row">
+          <button id="previewBtn">👁 Costruisci e apri anteprima</button>
+          <span id="previewMsg" class="muted"></span>
+        </div>
+      </section>
+    </main>
+
+    <!-- Preview articolo -->
+    <dialog id="articleDlg">
+      <div class="row" style="justify-content:space-between">
+        <strong id="dlgTitle"></strong>
+        <button onclick="document.getElementById('articleDlg').close()">Chiudi</button>
+      </div>
+      <div class="row" id="dlgLangs" style="margin:10px 0"></div>
+      <pre class="output" id="dlgContent" style="max-height:60vh"></pre>
+    </dialog>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const api = (p, opt) => fetch(p, opt).then((r) => r.json());
+      let site = null;
+      let currentDlgSlug = null;
+      let articlesData = [];
+
+      async function loadSites() {
+        const { sites } = await api("/api/sites");
+        $("site").innerHTML = sites.map((s) => `<option>${s}</option>`).join("");
+        site = sites[0];
+        await loadArticles();
+      }
+
+      async function loadArticles() {
+        site = $("site").value || site;
+        $("articles").innerHTML = '<p class="muted">Carico…</p>';
+        const { articles } = await api("/api/articles?site=" + encodeURIComponent(site));
+        articlesData = articles || [];
+        if (!articlesData.length) {
+          $("articles").innerHTML = '<p class="muted">Nessun articolo. Usa "Scopri notizie".</p>';
+          return;
+        }
+        $("articles").innerHTML = articlesData.map(renderArticle).join("");
+      }
+
+      function langTags(langs) {
+        return ["en", "it"].map((l) => {
+          if (!langs[l]) return `<span class="tag muted">${l}: —</span>`;
+          return `<span class="tag ${langs[l].draft ? "draft" : "live"}">${l}: ${langs[l].draft ? "bozza" : "online"}</span>`;
+        }).join(" ");
+      }
+
+      function renderArticle(a) {
+        const anyDraft = Object.values(a.langs).some((x) => x.draft);
+        const pub = anyDraft
+          ? `<button class="primary" data-act="publish" data-slug="${esc(a.slug)}">Pubblica</button>`
+          : `<span class="tag live">pubblicato</span>`;
+        return `<div class="article">
+          <div class="meta">
+            <div class="title">${esc(a.title)}</div>
+            <div class="sub">${a.pubDate || "—"} · ${a.category || "—"} · ${langTags(a.langs)}</div>
+          </div>
+          <button data-act="view" data-slug="${esc(a.slug)}">Anteprima</button>
+          ${pub}
+        </div>`;
+      }
+
+      // Event delegation: article titles/slugs may contain quotes, so never build
+      // inline onclick handlers from them.
+      $("articles").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-act]");
+        if (!btn) return;
+        const slug = btn.getAttribute("data-slug");
+        if (btn.dataset.act === "view") viewArticle(slug);
+        else if (btn.dataset.act === "publish") publish(slug);
+      });
+
+      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+      async function publish(slug) {
+        if (!confirm("Pubblicare «" + slug + "»? (bozza → online, EN+IT)")) return;
+        const r = await api("/api/publish", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ site, slug }),
+        });
+        if (!r.ok) alert("Errore:\n" + (r.output || r.error));
+        await loadArticles();
+      }
+
+      async function viewArticle(slug) {
+        currentDlgSlug = slug;
+        const a = articlesData.find((x) => x.slug === slug);
+        $("dlgTitle").textContent = a ? a.title : slug;
+        $("dlgLangs").innerHTML = ["en", "it"]
+          .map((l) => `<button onclick="loadArticleLang('${l}')">${l.toUpperCase()}</button>`)
+          .join(" ");
+        $("dlgContent").textContent = "…";
+        $("articleDlg").showModal();
+        loadArticleLang("en");
+      }
+
+      async function loadArticleLang(lang) {
+        const r = await api(`/api/article?site=${encodeURIComponent(site)}&lang=${lang}&slug=${encodeURIComponent(currentDlgSlug)}`);
+        $("dlgContent").textContent = r.content || r.error || "(vuoto)";
+      }
+
+      function runDiscover() {
+        const out = $("discoverOut");
+        out.hidden = false;
+        out.textContent = "";
+        $("runDiscover").disabled = true;
+        const qs = new URLSearchParams({
+          site,
+          freshness: $("freshness").value,
+          maxQueries: $("maxQueries").value,
+          maxArticles: $("maxArticles").value,
+          dryRun: $("dryRun").checked ? "1" : "0",
+        });
+        const es = new EventSource("/api/discover/stream?" + qs);
+        es.onmessage = (e) => {
+          out.textContent += e.data + "\n";
+          out.scrollTop = out.scrollHeight;
+        };
+        es.addEventListener("done", () => {
+          es.close();
+          $("runDiscover").disabled = false;
+          loadArticles();
+        });
+        es.onerror = () => {
+          es.close();
+          $("runDiscover").disabled = false;
+        };
+      }
+
+      async function gitRefresh() {
+        const out = $("gitOut");
+        out.hidden = false;
+        out.textContent = "…";
+        const r = await api("/api/git/status");
+        out.textContent = r.output ? r.output : "Niente da committare (nessuna modifica ai contenuti).";
+      }
+
+      async function gitCommit() {
+        if (!confirm("Committare e fare push dei contenuti su GitHub?")) return;
+        const out = $("gitOut");
+        out.hidden = false;
+        out.textContent = "Commit + push in corso…";
+        const r = await api("/api/git/commit", { method: "POST" });
+        out.textContent = r.output || r.error || (r.ok ? "Fatto." : "Errore.");
+      }
+
+      async function preview() {
+        const btn = $("previewBtn");
+        btn.disabled = true;
+        $("previewMsg").textContent = "Costruisco e avvio l'anteprima…";
+        const r = await api("/api/preview?site=" + encodeURIComponent(site));
+        btn.disabled = false;
+        if (r.url) {
+          $("previewMsg").innerHTML = `Aperta: <a href="${r.url}/en/" target="_blank">${r.url}/en/</a>`;
+          window.open(r.url + "/en/", "_blank");
+        } else {
+          $("previewMsg").textContent = "Errore: " + (r.error || "");
+        }
+      }
+
+      $("site").onchange = loadArticles;
+      $("runDiscover").onclick = runDiscover;
+      $("gitRefresh").onclick = gitRefresh;
+      $("gitCommit").onclick = gitCommit;
+      $("previewBtn").onclick = preview;
+      loadSites();
+    </script>
+  </body>
+</html>

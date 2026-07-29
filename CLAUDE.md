@@ -68,6 +68,9 @@ npm run generate -- --site tabletnexus                               # salva un 
 npm run review   -- --site tabletnexus                               # coda di revisione: pubblicati vs bozze
 npm run publish  -- --site tabletnexus --slug <slug>                 # pubblica una bozza (draft: true -> false); --all per tutte
 
+# console web locale (alternativa friendly alla CLI): rivedi/pubblica/scopri/commit da browser
+npm run console --workspace pipeline    # http://localhost:4455 (o doppio click su console.cmd in root)
+
 # infra (da infra/)
 ansible-playbook -i inventory/local.yml site.yml       # provisioning VM locale
 ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
