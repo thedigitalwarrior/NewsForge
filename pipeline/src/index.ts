@@ -54,7 +54,7 @@ discover:
 
 generate:
   --site <slug>       Sito                                       [obbligatorio]
-  --provider <nome>   anthropic | mock                            [default: anthropic]
+  --provider <nome>   Forza tutti i ruoli (anthropic|openai|local|mock)
   --topic "<testo>"   Argomento dell'articolo
   --url <fonte>       URL di una fonte (ripetibile)
   --force             Rigenera anche se già coperto
