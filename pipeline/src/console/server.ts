@@ -11,7 +11,14 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { spawn } from "node:child_process";
-import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  readdirSync,
+  existsSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -218,6 +225,48 @@ async function handleApi(
       ok: r.code === 0,
       output: r.output,
     });
+  }
+
+  // POST /api/discard {site, slug} — delete a DRAFT article (all langs) + prune
+  // state. Refuses if any language is already published (never deletes live content).
+  if (req.method === "POST" && url.pathname === "/api/discard") {
+    const body = await readBody(req);
+    const site = requireSite(String(body.site ?? ""));
+    const slug = String(body.slug ?? "");
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    const row = listArticles(site).find((a) => a.slug === slug);
+    if (!row) return sendJson(res, 400, { error: "slug sconosciuto" });
+    const allDraft = Object.values(row.langs).every((l) => l.draft);
+    if (!allDraft) {
+      return sendJson(res, 409, {
+        error: "articolo pubblicato: non eliminabile dalla console",
+      });
+    }
+    const removed: string[] = [];
+    for (const lang of LOCALES) {
+      for (const ext of ["md", "mdx"]) {
+        const f = path.join(newsDir(site, lang), `${slug}.${ext}`);
+        if (existsSync(f)) {
+          unlinkSync(f);
+          removed.push(`${lang}/${slug}.${ext}`);
+        }
+      }
+    }
+    const sf = path.join(pipelineDir, "state", `${site}.json`);
+    if (existsSync(sf)) {
+      try {
+        const s = JSON.parse(readFileSync(sf, "utf8"));
+        if (Array.isArray(s.covered)) {
+          s.covered = s.covered.filter(
+            (c: { slug?: string }) => c.slug !== slug,
+          );
+          writeFileSync(sf, JSON.stringify(s, null, 2) + "\n");
+        }
+      } catch {
+        // state pruning is best-effort
+      }
+    }
+    return sendJson(res, 200, { ok: true, removed });
   }
 
   // GET /api/discover/stream?site=&freshness=&maxQueries=&maxArticles=&dryRun=

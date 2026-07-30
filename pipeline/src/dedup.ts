@@ -11,7 +11,13 @@ export interface DedupThresholds {
   low: number;
 }
 
-export const DEFAULT_THRESHOLDS: DedupThresholds = { high: 0.86, low: 0.72 };
+// `low` is deliberately conservative: in tight domains (e.g. "free game X on
+// store Y") the same giveaway reworded a day later can score only ~0.65 while
+// two genuinely different giveaways sit ~0.54 — the embedding barely separates
+// them. So the floor is set low enough that such borderline pairs reach the LLM
+// judge (which decides accurately) instead of being auto-accepted as new. The
+// cost is a few extra cheap judge calls per run.
+export const DEFAULT_THRESHOLDS: DedupThresholds = { high: 0.86, low: 0.6 };
 
 export type Verdict =
   | { kind: "new"; score: number; usage?: Usage }

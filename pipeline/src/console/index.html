@@ -193,8 +193,9 @@
 
       function renderArticle(a) {
         const anyDraft = Object.values(a.langs).some((x) => x.draft);
-        const pub = anyDraft
-          ? `<button class="primary" data-act="publish" data-slug="${esc(a.slug)}">Pubblica</button>`
+        const actions = anyDraft
+          ? `<button data-act="discard" data-slug="${esc(a.slug)}" title="Elimina la bozza">🗑 Scarta</button>
+             <button class="primary" data-act="publish" data-slug="${esc(a.slug)}">Pubblica</button>`
           : `<span class="tag live">pubblicato</span>`;
         return `<div class="article">
           <div class="meta">
@@ -202,7 +203,7 @@
             <div class="sub">${a.pubDate || "—"} · ${a.category || "—"} · ${langTags(a.langs)}</div>
           </div>
           <button data-act="view" data-slug="${esc(a.slug)}">Anteprima</button>
-          ${pub}
+          ${actions}
         </div>`;
       }
 
@@ -214,6 +215,7 @@
         const slug = btn.getAttribute("data-slug");
         if (btn.dataset.act === "view") viewArticle(slug);
         else if (btn.dataset.act === "publish") publish(slug);
+        else if (btn.dataset.act === "discard") discard(slug);
       });
 
       const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -226,6 +228,17 @@
           body: JSON.stringify({ site, slug }),
         });
         if (!r.ok) alert("Errore:\n" + (r.output || r.error));
+        await loadArticles();
+      }
+
+      async function discard(slug) {
+        if (!confirm("Eliminare definitivamente la bozza «" + slug + "» (EN+IT)?")) return;
+        const r = await api("/api/discard", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ site, slug }),
+        });
+        if (!r.ok) alert("Errore: " + (r.error || ""));
         await loadArticles();
       }
 
