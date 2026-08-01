@@ -218,10 +218,10 @@ async function handleApi(
     const status = url.searchParams.get("status") ?? "draft";
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const category = url.searchParams.get("category") ?? "";
-    const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+    const reqPage = Math.max(1, Number(url.searchParams.get("page")) || 1);
     const pageSize = Math.min(
       100,
-      Math.max(5, Number(url.searchParams.get("pageSize")) || 30),
+      Math.max(1, Number(url.searchParams.get("pageSize")) || 30),
     );
 
     let rows = all;
@@ -235,12 +235,17 @@ async function handleApi(
     }
 
     const total = rows.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    // Clamp the requested page into range so an out-of-bounds page can never
+    // return an empty over-page; the echoed `page` lets the client resync.
+    const page = Math.min(reqPage, pages);
     const start = (page - 1) * pageSize;
     const items = rows.slice(start, start + pageSize);
     return sendJson(res, 200, {
       items,
       total,
       page,
+      pages,
       pageSize,
       counts: {
         draft: all.filter((r) => r.anyDraft).length,

@@ -185,6 +185,8 @@
       let listPage = 1;
       let listQ = "";
       let listCat = "";
+      let listTotalPages = 1;
+      let listPageSize = 30;
 
       async function loadSites() {
         const { sites } = await api("/api/sites");
@@ -207,11 +209,15 @@
           site,
           status: listStatus,
           page: String(listPage),
+          pageSize: String(listPageSize),
           q: listQ,
           category: listCat,
         });
         const r = await api("/api/articles?" + qs);
         articlesData = r.items || [];
+        // Resync to the page the server actually served (it clamps out-of-range).
+        listPage = r.page || 1;
+        listTotalPages = r.pages || 1;
         if (r.counts) {
           $("cntDraft").textContent = r.counts.draft;
           $("cntPub").textContent = r.counts.published;
@@ -226,7 +232,7 @@
         } else {
           $("articles").innerHTML = articlesData.map(renderArticle).join("");
         }
-        renderPager(r.total || 0, r.page || 1, r.pageSize || 30);
+        renderPager(r.total || 0);
       }
 
       function fillCategories(cats) {
@@ -238,14 +244,13 @@
         sel.value = cur;
       }
 
-      function renderPager(total, page, pageSize) {
-        const pages = Math.max(1, Math.ceil(total / pageSize));
-        const show = listStatus === "published" && pages > 1;
+      function renderPager(total) {
+        const show = listStatus === "published" && listTotalPages > 1;
         $("pager").hidden = !show;
         if (show) {
-          $("pageInfo").textContent = `Pagina ${page} di ${pages} · ${total} articoli`;
-          $("prevPage").disabled = page <= 1;
-          $("nextPage").disabled = page >= pages;
+          $("pageInfo").textContent = `Pagina ${listPage} di ${listTotalPages} · ${total} articoli`;
+          $("prevPage").disabled = listPage <= 1;
+          $("nextPage").disabled = listPage >= listTotalPages;
         }
       }
 
@@ -422,7 +427,9 @@
       $("prevPage").onclick = () => {
         if (listPage > 1) { listPage--; loadArticles(); }
       };
-      $("nextPage").onclick = () => { listPage++; loadArticles(); };
+      $("nextPage").onclick = () => {
+        if (listPage < listTotalPages) { listPage++; loadArticles(); }
+      };
       $("runDiscover").onclick = runDiscover;
       $("gitRefresh").onclick = gitRefresh;
       $("gitCommit").onclick = gitCommit;
