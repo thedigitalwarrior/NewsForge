@@ -72,8 +72,9 @@ npm run publish  -- --site tabletnexus --slug <slug>                 # pubblica 
 npm run console --workspace pipeline    # http://localhost:4455 (o doppio click su console.cmd in root)
 
 # infra (da infra/)
-ansible-playbook -i inventory/local.yml site.yml       # provisioning VM locale
-ansible-playbook -i inventory/prod.yml site.yml        # provisioning produzione
+ansible-playbook deploy.yml -K                         # SOLO contenuti: git pull+build+rsync (veloce, non tocca Caddy)
+ansible-playbook site.yml -K                           # provisioning completo (prima installazione / modifiche caddy-node-base)
+ansible-playbook site.yml --tags deploy -K             # equivalente a deploy.yml
 ```
 
 (Aggiornare questa sezione man mano che gli script prendono forma.)

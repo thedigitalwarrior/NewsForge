@@ -2,11 +2,14 @@
 # Playbook principale: base -> node -> caddy -> deploy, verificati su `local`.
 # Multi-sito: i ruoli caddy e deploy ciclano sulla lista `sites` (group_vars),
 # quindi aggiungere un sito è una voce di dati, non codice nuovo.
+#
+# Tag: per il solo aggiornamento contenuti usa `--tags deploy` (o il playbook
+# dedicato deploy.yml); per il solo provisioning `--tags provision`.
 - name: Provisioning della rete NewsForge
   hosts: local
   become: true
   roles:
-    - base
-    - node
-    - caddy
-    - deploy
+    - { role: base, tags: [provision, base] }
+    - { role: node, tags: [provision, node] }
+    - { role: caddy, tags: [provision, caddy] }
+    - { role: deploy, tags: [deploy] }

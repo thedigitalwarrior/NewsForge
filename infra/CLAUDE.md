@@ -40,6 +40,22 @@ export ANSIBLE_CONFIG=/mnt/d/AI/Vibe/Claude/NewsForge/infra/ansible.cfg
 Conviene metterlo in `~/.bashrc` una volta per tutte. Il warning "world writable directory"
 resta visibile ma è innocuo.
 
+## Provisioning vs deploy (separati)
+
+Due esigenze diverse, due comandi:
+
+- **Deploy contenuti** (routine): `ansible-playbook deploy.yml -K` — solo il ruolo `deploy`
+  (git pull → build → rsync in docroot). **Non tocca base/node/caddy**, quindi è veloce e non
+  causa alcun reload/restart di Caddy. La build gira in `/opt/newsforge`: il sito resta servito
+  fino allo scambio rsync finale (impatto quasi nullo).
+- **Provisioning completo** (prima installazione o modifiche a caddy/node/base):
+  `ansible-playbook site.yml -K`. Idempotente: se nulla cambia, Caddy non viene toccato (il
+  reload è un handler `state: reloaded` — graduale, zero-downtime — e scatta solo se il
+  Caddyfile cambia davvero).
+
+`site.yml` ha anche i tag `provision` e `deploy`: `--tags deploy` equivale a `deploy.yml`,
+`--tags provision` fa solo base+node+caddy.
+
 ## Convenzioni
 
 - Secrets SOLO in Ansible Vault (`group_vars/*/vault.yml`), mai in chiaro nel repo.

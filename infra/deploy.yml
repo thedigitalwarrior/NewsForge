@@ -1,0 +1,13 @@
+---
+# Deploy dei soli CONTENUTI: git pull -> build (Astro+Pagefind) -> rsync in docroot.
+# NON tocca base/node/caddy, quindi:
+#   - è veloce (salta tutto il provisioning),
+#   - non tocca Caddy in alcun modo (nessun reload/restart): zero impatto sul sito,
+#   - la build gira in /opt/newsforge, il sito resta servito fino allo scambio rsync.
+# Usare per gli aggiornamenti di routine dei contenuti.
+# Per il provisioning completo (prima installazione o modifiche a caddy/node/base): site.yml.
+- name: Deploy contenuti NewsForge
+  hosts: local
+  become: true
+  roles:
+    - deploy
