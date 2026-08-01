@@ -18,6 +18,12 @@ export interface DiscoverOptions {
   perQuery: number;
   freshness: string;
   dryRun: boolean;
+  /**
+   * Emit the candidate events as a machine-readable JSON block (prefixed with a
+   * marker) and generate NOTHING. Used by the console's two-stage flow: find
+   * candidates → the human picks → generate the chosen ones separately.
+   */
+  json?: boolean;
 }
 
 /** Max source URLs passed to a single article (keeps fetch + tokens sane). */
@@ -35,9 +41,11 @@ function hostOf(r: SearchResult): string {
 /**
  * Search-driven discovery. Both editorial judgments — is this on-topic, and which
  * items are the same event — are done by the LLM in one batched triage call
- * (embeddings conflate surface features and get both wrong). Embeddings are used
+ * (embeddings conflate surface features and get both wrong); the LLM also rates
+ * each event's importance so the most newsworthy come first. Embeddings are used
  * only for the cheap dedup fast path against the covered index. Then one
- * multi-source article is generated per genuinely new event.
+ * multi-source article is generated per genuinely new event (or, in `json` mode,
+ * the candidate list is emitted for the human to pick from).
  */
 export async function discover(
   opts: DiscoverOptions,
@@ -46,8 +54,15 @@ export async function discover(
   const site = getSite(opts.site);
   const search = getSearchProvider(opts.searchProvider);
   const queries = site.searchQueries.slice(0, opts.maxQueries);
+  // In JSON mode stdout must carry only the candidate payload, so human logs go dark.
+  const log = opts.json
+    ? () => {}
+    : (...a: unknown[]) => console.log(...a);
+  const emitCandidates = (candidates: unknown[]): void => {
+    process.stdout.write(`\n__CANDIDATES__${JSON.stringify({ candidates })}\n`);
+  };
 
-  console.log(
+  log(
     `🔎  Scoperta per ${site.name}: ${queries.length} query su "${search.name}" (freshness=${opts.freshness})`,
   );
 
@@ -72,15 +87,16 @@ export async function discover(
       candidates.push(r);
       added++;
     }
-    console.log(`  ↳ "${q}": ${results.length} risultati (${added} nuovi)`);
+    log(`  ↳ "${q}": ${results.length} risultati (${added} nuovi)`);
   }
 
   if (candidates.length === 0) {
-    console.log("Nessun candidato trovato.");
+    if (opts.json) emitCandidates([]);
+    else log("Nessun candidato trovato.");
     return;
   }
 
-  // LLM triage: relevance + event grouping in one call.
+  // LLM triage: relevance + event grouping + importance in one call.
   if (!providers.triage.triageCandidates) {
     throw new Error(
       `Il provider "${providers.triage.name}" non sa fare la triage: usane uno che la implementa.`,
@@ -90,21 +106,22 @@ export async function discover(
     triageSystem(site.editorialScope),
     candidates.map((c) => ({ title: c.title, snippet: c.snippet })),
   );
-  logUsage(`${providers.triage.name} · triage`, triage.usage);
+  if (!opts.json) logUsage(`${providers.triage.name} · triage`, triage.usage);
 
   const kept = candidates.map((_, i) => i).filter((i) => triage.verdicts[i].relevant);
   const dropped = candidates.map((_, i) => i).filter((i) => !triage.verdicts[i].relevant);
 
-  console.log(
+  log(
     `\n📊  ${candidates.length} candidati → ${kept.length} in tema (scartati ${dropped.length} fuori tema)`,
   );
   if (opts.dryRun && dropped.length) {
-    console.log("\n── Scartati (fuori tema) ──");
-    for (const i of dropped) console.log(`   ✗ ${candidates[i].title}`);
+    log("\n── Scartati (fuori tema) ──");
+    for (const i of dropped) log(`   ✗ ${candidates[i].title}`);
   }
 
   if (kept.length === 0) {
-    console.log("\nNessun candidato in tema. Rivedi le query o l'editorialScope.");
+    if (opts.json) emitCandidates([]);
+    else log("\nNessun candidato in tema. Rivedi le query o l'editorialScope.");
     return;
   }
 
@@ -116,10 +133,17 @@ export async function discover(
     if (arr) arr.push(i);
     else byEvent.set(e, [i]);
   }
-  const clusters = [...byEvent.values()].sort((a, b) => b.length - a.length);
+  // Importance of an event = the highest importance among its sources.
+  const clusterImportance = (c: number[]): number =>
+    Math.max(...c.map((i) => triage.verdicts[i].importance ?? 3));
+  // Most newsworthy first, then best-corroborated (more sources) as tiebreak.
+  const clusters = [...byEvent.values()].sort((a, b) => {
+    const di = clusterImportance(b) - clusterImportance(a);
+    return di !== 0 ? di : b.length - a.length;
+  });
 
   const grouped = clusters.filter((c) => c.length > 1).length;
-  console.log(
+  log(
     `\n📰  ${kept.length} in tema → ${clusters.length} eventi distinti (${grouped} con più fonti)\n`,
   );
 
@@ -129,6 +153,40 @@ export async function discover(
     buildSignature(candidates[c[0]].title, candidates[c[0]].snippet),
   );
   const repEmbeddings = await embedder.embed(repSignatures.map((s) => s.text));
+
+  // JSON candidate mode: classify dedup for each event and emit the list. No
+  // generation — the human picks which to generate in a later step.
+  if (opts.json) {
+    const state = await loadState(site.slug);
+    const out = [];
+    for (let ci = 0; ci < clusters.length; ci++) {
+      const cluster = clusters[ci];
+      const verdict = await classifyCandidate(
+        { signature: repSignatures[ci], embedding: repEmbeddings[ci] },
+        state,
+        providers.judge,
+        undefined,
+        { useJudge: true },
+      );
+      out.push({
+        event: triage.verdicts[cluster[0]].event,
+        label: candidates[cluster[0]].title,
+        sourceCount: cluster.length,
+        importance: clusterImportance(cluster),
+        dedup: verdict.kind === "duplicate" ? "duplicate" : "new",
+        dedupScore: Number(verdict.score.toFixed(3)),
+        sources: cluster
+          .map((i) => candidates[i].url)
+          .slice(0, MAX_SOURCES_PER_ARTICLE),
+        hosts: [...new Set(cluster.map((i) => hostOf(candidates[i])))].slice(
+          0,
+          MAX_SOURCES_PER_ARTICLE,
+        ),
+      });
+    }
+    emitCandidates(out);
+    return;
+  }
 
   let produced = 0;
   for (let ci = 0; ci < clusters.length; ci++) {
@@ -152,10 +210,12 @@ export async function discover(
 
     const covered = verdict.kind === "duplicate";
     const tag = covered ? `⏭  già coperto (${verdict.score.toFixed(2)})` : "🆕";
-    console.log(`${tag}  [${cluster.length} fonti]  ${label}`);
+    log(
+      `${tag}  [imp ${clusterImportance(cluster)} · ${cluster.length} fonti]  ${label}`,
+    );
     if (cluster.length > 1) {
       for (const i of cluster) {
-        console.log(`        · ${hostOf(candidates[i])} — ${candidates[i].title}`);
+        log(`        · ${hostOf(candidates[i])} — ${candidates[i].title}`);
       }
     }
 
@@ -169,7 +229,7 @@ export async function discover(
     );
   }
 
-  console.log(
+  log(
     `\nRiepilogo: ${usedQueries} query · ${candidates.length} candidati · ${kept.length} in tema · ${clusters.length} eventi · ` +
       (opts.dryRun
         ? `${produced} nuovi (dry-run, nulla generato)`

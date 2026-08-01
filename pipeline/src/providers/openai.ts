@@ -147,6 +147,7 @@ export function createOpenAICompatibleProvider(
             index: z.number(),
             relevant: z.boolean(),
             event: z.number(),
+            importance: z.number(),
           }),
         ),
       });
@@ -154,12 +155,25 @@ export function createOpenAICompatibleProvider(
         .map((it, i) => `${i + 1}. ${it.title} — ${it.snippet.slice(0, 200)}`)
         .join("\n");
       const { data, usage } = await structured<{
-        results: { index: number; relevant: boolean; event: number }[];
+        results: {
+          index: number;
+          relevant: boolean;
+          event: number;
+          importance: number;
+        }[];
       }>(system, list, schema, 6000);
-      const verdicts = items.map((_, i) => ({ relevant: true, event: -(i + 1) }));
+      const verdicts = items.map((_, i) => ({
+        relevant: true,
+        event: -(i + 1),
+        importance: 3,
+      }));
       for (const r of data.results) {
         if (r.index >= 1 && r.index <= items.length) {
-          verdicts[r.index - 1] = { relevant: r.relevant, event: r.event };
+          verdicts[r.index - 1] = {
+            relevant: r.relevant,
+            event: r.event,
+            importance: r.importance ?? 3,
+          };
         }
       }
       return { verdicts, usage };

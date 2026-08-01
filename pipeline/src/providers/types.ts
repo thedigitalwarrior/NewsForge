@@ -73,6 +73,8 @@ export interface TriageVerdict {
   relevant: boolean;
   /** Event id: items reporting the SAME news event share the same number. */
   event: number;
+  /** Newsworthiness 1 (minor/niche) – 5 (major, widely relevant). Ranks what to generate first. */
+  importance: number;
 }
 
 export interface TriageResult {

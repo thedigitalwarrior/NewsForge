@@ -125,15 +125,14 @@
           <div class="field"><label>Query</label>
             <input id="maxQueries" type="number" min="1" max="8" value="2" style="width:80px" />
           </div>
-          <div class="field"><label>Max articoli</label>
-            <input id="maxArticles" type="number" min="1" max="10" value="2" style="width:80px" />
-          </div>
           <div class="field"><label>&nbsp;</label>
-            <label class="row" style="gap:6px"><input type="checkbox" id="dryRun" /> Anteprima (non genera)</label>
+            <button class="primary" id="findBtn">🔍 Trova candidati</button>
           </div>
-          <div class="field"><label>&nbsp;</label>
-            <button class="primary" id="runDiscover">▶ Avvia scoperta</button>
-          </div>
+        </div>
+        <p class="muted" style="margin:8px 0 0; font-size:12.5px">Cerca e valuta (non genera). Poi spunti quali trasformare in bozze.</p>
+        <div id="candidates" style="margin-top:12px"></div>
+        <div class="row" id="genBar" hidden style="margin-top:12px">
+          <button class="primary" id="genSelBtn" disabled>Genera selezionati (<span id="genCount">0</span>)</button>
         </div>
         <pre class="output" id="discoverOut" hidden></pre>
       </section>
@@ -344,32 +343,99 @@
         $("dlgContent").textContent = r.content || r.error || "(vuoto)";
       }
 
-      function runDiscover() {
+      let candidatesData = [];
+
+      function clearCandidates() {
+        candidatesData = [];
+        $("candidates").innerHTML = "";
+        $("genBar").hidden = true;
+        $("discoverOut").hidden = true;
+      }
+
+      const stars = (n) => "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
+
+      async function findCandidates() {
+        const btn = $("findBtn");
+        btn.disabled = true;
+        $("genBar").hidden = true;
+        $("discoverOut").hidden = true;
+        $("candidates").innerHTML =
+          '<p class="muted">Cerco candidati… (ricerca + triage, qualche secondo)</p>';
+        const qs = new URLSearchParams({
+          site,
+          maxQueries: $("maxQueries").value,
+          freshness: $("freshness").value,
+        });
+        const r = await api("/api/candidates?" + qs);
+        btn.disabled = false;
+        if (r.error) {
+          $("candidates").innerHTML = `<p class="muted">Errore: ${esc(r.error)}${
+            r.output ? " — " + esc(r.output.slice(-300)) : ""
+          }</p>`;
+          return;
+        }
+        candidatesData = r.candidates || [];
+        if (!candidatesData.length) {
+          $("candidates").innerHTML =
+            '<p class="muted">Nessun candidato. Prova ad allargare Freschezza o aumentare Query.</p>';
+          return;
+        }
+        $("candidates").innerHTML = candidatesData.map(renderCandidate).join("");
+        $("genBar").hidden = false;
+        updateGenCount();
+      }
+
+      function renderCandidate(c, i) {
+        const dup = c.dedup === "duplicate";
+        const badge = dup
+          ? '<span class="tag draft">già coperto</span>'
+          : '<span class="tag live">nuovo</span>';
+        return `<label class="article" style="cursor:pointer;${dup ? "opacity:.55" : ""}">
+          <input type="checkbox" data-idx="${i}" ${dup ? "disabled" : ""} />
+          <div class="meta">
+            <div class="title">${esc(c.label)} ${badge}</div>
+            <div class="sub"><span title="importanza ${c.importance}/5" style="color:var(--accent2)">${stars(c.importance)}</span> · ${c.sourceCount} font${c.sourceCount === 1 ? "e" : "i"} · ${esc((c.hosts || []).join(", "))}</div>
+          </div>
+        </label>`;
+      }
+
+      function updateGenCount() {
+        const n = $("candidates").querySelectorAll(
+          "input[type=checkbox]:checked",
+        ).length;
+        $("genCount").textContent = n;
+        $("genSelBtn").disabled = n === 0;
+      }
+
+      async function generateSelected() {
+        const boxes = [
+          ...$("candidates").querySelectorAll("input[type=checkbox]:checked"),
+        ];
+        if (!boxes.length) return;
+        const chosen = boxes.map((b) => candidatesData[Number(b.dataset.idx)]);
+        $("genSelBtn").disabled = true;
         const out = $("discoverOut");
         out.hidden = false;
         out.textContent = "";
-        $("runDiscover").disabled = true;
-        const qs = new URLSearchParams({
-          site,
-          freshness: $("freshness").value,
-          maxQueries: $("maxQueries").value,
-          maxArticles: $("maxArticles").value,
-          dryRun: $("dryRun").checked ? "1" : "0",
-        });
-        const es = new EventSource("/api/discover/stream?" + qs);
-        es.onmessage = (e) => {
-          out.textContent += e.data + "\n";
+        let done = 0;
+        for (const c of chosen) {
+          out.textContent += `▶ Genero: ${c.label}\n`;
           out.scrollTop = out.scrollHeight;
-        };
-        es.addEventListener("done", () => {
-          es.close();
-          $("runDiscover").disabled = false;
-          loadArticles();
-        });
-        es.onerror = () => {
-          es.close();
-          $("runDiscover").disabled = false;
-        };
+          const r = await api("/api/generate-candidate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ site, topic: c.label, urls: c.sources }),
+          });
+          done++;
+          out.textContent += r.ok
+            ? `✓ fatto (${done}/${chosen.length})\n`
+            : `✗ errore: ${(r.output || r.error || "").slice(-300)}\n`;
+          out.scrollTop = out.scrollHeight;
+        }
+        out.textContent += `\nCompletato. Le nuove bozze sono in "Da revisionare".\n`;
+        clearCandidates();
+        out.hidden = false;
+        setStatus("draft");
       }
 
       async function gitRefresh() {
@@ -407,7 +473,7 @@
         }
       }
 
-      $("site").onchange = () => setStatus("draft");
+      $("site").onchange = () => { clearCandidates(); setStatus("draft"); };
       $("tabDrafts").onclick = () => setStatus("draft");
       $("tabPub").onclick = () => setStatus("published");
       $("catFilter").onchange = () => {
@@ -430,7 +496,9 @@
       $("nextPage").onclick = () => {
         if (listPage < listTotalPages) { listPage++; loadArticles(); }
       };
-      $("runDiscover").onclick = runDiscover;
+      $("findBtn").onclick = findCandidates;
+      $("genSelBtn").onclick = generateSelected;
+      $("candidates").addEventListener("change", updateGenCount);
       $("gitRefresh").onclick = gitRefresh;
       $("gitCommit").onclick = gitCommit;
       $("previewBtn").onclick = preview;

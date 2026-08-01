@@ -174,6 +174,9 @@ export function createAnthropicProvider(
               .describe(
                 "Event group id: items reporting the SAME specific news event share the same number; different events get different numbers",
               ),
+            importance: z
+              .number()
+              .describe("Newsworthiness 1 (minor) to 5 (major story of wide interest)"),
           }),
         ),
       });
@@ -189,15 +192,28 @@ export function createAnthropicProvider(
         messages: [{ role: "user", content: list }],
       });
       const out = response.parsed_output as {
-        results: { index: number; relevant: boolean; event: number }[];
+        results: {
+          index: number;
+          relevant: boolean;
+          event: number;
+          importance: number;
+        }[];
       } | null;
       if (!out) throw new Error("Triage candidati: output non valido.");
 
-      // Default missing verdicts to relevant + own singleton event.
-      const verdicts = items.map((_, i) => ({ relevant: true, event: -(i + 1) }));
+      // Default missing verdicts to relevant + own singleton event + mid importance.
+      const verdicts = items.map((_, i) => ({
+        relevant: true,
+        event: -(i + 1),
+        importance: 3,
+      }));
       for (const r of out.results) {
         if (r.index >= 1 && r.index <= items.length) {
-          verdicts[r.index - 1] = { relevant: r.relevant, event: r.event };
+          verdicts[r.index - 1] = {
+            relevant: r.relevant,
+            event: r.event,
+            importance: r.importance ?? 3,
+          };
         }
       }
       return {

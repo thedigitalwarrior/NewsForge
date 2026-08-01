@@ -168,6 +168,31 @@ function run(
   });
 }
 
+/**
+ * Like run() but keeps stdout and stderr separate, and can run WITHOUT a shell.
+ * shell:false + an argv array means arguments are passed literally to the
+ * process — no shell metacharacter parsing — which is what makes it safe to pass
+ * a free-text article title (from the web) as `--topic`.
+ */
+function runCapture(
+  command: string,
+  args: string[],
+  cwd: string,
+  shell = true,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { cwd, shell });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("close", (code) => resolve({ code: code ?? 0, stdout, stderr }));
+    child.on("error", (err) =>
+      resolve({ code: 1, stdout, stderr: String(err) }),
+    );
+  });
+}
+
 // ---- request helpers ---------------------------------------------------------
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -332,57 +357,82 @@ async function handleApi(
     return sendJson(res, 200, { ok: true, removed });
   }
 
-  // GET /api/discover/stream?site=&freshness=&maxQueries=&maxArticles=&dryRun=
-  if (req.method === "GET" && url.pathname === "/api/discover/stream") {
+  // GET /api/candidates?site=&maxQueries=&freshness= — run discovery through
+  // triage + dedup and return the candidate events (JSON), generating NOTHING.
+  if (req.method === "GET" && url.pathname === "/api/candidates") {
     const site = requireSite(url.searchParams.get("site"));
     if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
-    const freshness = url.searchParams.get("freshness") ?? "pw";
     const maxQueries = String(
       Math.max(1, Math.min(8, Number(url.searchParams.get("maxQueries")) || 2)),
     );
-    const maxArticles = String(
-      Math.max(1, Math.min(10, Number(url.searchParams.get("maxArticles")) || 2)),
+    const freshness = url.searchParams.get("freshness") ?? "pw";
+    const r = await runCapture(
+      "npx",
+      [
+        "tsx",
+        "src/index.ts",
+        "discover",
+        "--site",
+        site,
+        "--json",
+        "--max-queries",
+        maxQueries,
+        "--freshness",
+        FRESHNESS.has(freshness) ? freshness : "pw",
+      ],
+      pipelineDir,
     );
-    const dryRun = url.searchParams.get("dryRun") === "1";
+    const marker = "__CANDIDATES__";
+    const idx = r.stdout.lastIndexOf(marker);
+    if (idx < 0) {
+      return sendJson(res, 500, {
+        error: "scoperta fallita",
+        output: (r.stderr || r.stdout).slice(-1500),
+      });
+    }
+    try {
+      const parsed = JSON.parse(r.stdout.slice(idx + marker.length).trim());
+      return sendJson(res, 200, { candidates: parsed.candidates ?? [] });
+    } catch {
+      return sendJson(res, 500, {
+        error: "output candidati non parsabile",
+        output: r.stdout.slice(-800),
+      });
+    }
+  }
+
+  // POST /api/generate-candidate {site, topic, urls[]} — generate ONE chosen
+  // candidate into drafts. The topic is a free-text title from the web, so it is
+  // run WITHOUT a shell (argv passed literally) to avoid any shell injection.
+  if (req.method === "POST" && url.pathname === "/api/generate-candidate") {
+    const body = await readBody(req);
+    const site = requireSite(String(body.site ?? ""));
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    const topic = String(body.topic ?? "").trim();
+    if (!topic) return sendJson(res, 400, { error: "topic mancante" });
+    const urls = Array.isArray(body.urls)
+      ? (body.urls as unknown[])
+          .map((u) => String(u))
+          .filter((u) => /^https?:\/\//i.test(u))
+          .slice(0, 5)
+      : [];
     const args = [
+      "--import",
       "tsx",
       "src/index.ts",
-      "discover",
+      "generate",
       "--site",
       site,
-      "--freshness",
-      FRESHNESS.has(freshness) ? freshness : "pw",
-      "--max-queries",
-      maxQueries,
-      "--max-articles",
-      maxArticles,
+      "--topic",
+      topic,
     ];
-    if (dryRun) args.push("--dry-run");
-
-    res.writeHead(200, {
-      "content-type": "text/event-stream; charset=utf-8",
-      "cache-control": "no-store",
-      connection: "keep-alive",
+    for (const u of urls) args.push("--url", u);
+    const r = await runCapture(process.execPath, args, pipelineDir, false);
+    if (r.code === 0) invalidateIndex(site);
+    return sendJson(res, r.code === 0 ? 200 : 500, {
+      ok: r.code === 0,
+      output: `${r.stdout}\n${r.stderr}`.slice(-2000),
     });
-    const child = spawn("npx", args, { cwd: pipelineDir, shell: true });
-    const send = (line: string) => res.write(`data: ${line}\n\n`);
-    let buffer = "";
-    const pump = (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-      for (const l of lines) send(l);
-    };
-    child.stdout.on("data", pump);
-    child.stderr.on("data", pump);
-    child.on("close", (code) => {
-      if (buffer) send(buffer);
-      invalidateIndex(site); // a run may have written new drafts
-      res.write(`event: done\ndata: ${code ?? 0}\n\n`);
-      res.end();
-    });
-    req.on("close", () => child.kill());
-    return;
   }
 
   // GET /api/git/status?site= — content changes for THIS site only

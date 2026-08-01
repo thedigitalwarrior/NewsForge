@@ -78,6 +78,7 @@ async function main(): Promise<void> {
       all: { type: "boolean", default: false },
       force: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
       "max-queries": { type: "string", default: "4" },
       "per-query": { type: "string", default: "20" },
       "max-articles": { type: "string", default: "2" },
@@ -105,6 +106,7 @@ async function main(): Promise<void> {
           maxArticles: Number(values["max-articles"]),
           freshness: values.freshness ?? "pd",
           dryRun: values["dry-run"] ?? false,
+          json: values.json ?? false,
         },
         providers,
       );

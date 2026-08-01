@@ -72,6 +72,7 @@ export function createMockProvider(): LLMProvider {
         verdicts: items.map((it, i) => ({
           relevant: kw.test(`${it.title} ${it.snippet}`),
           event: i,
+          importance: 3, // offline heuristic has no real importance signal
         })),
         usage: { inputTokens: 0, outputTokens: 0 },
       };
