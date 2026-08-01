@@ -48,6 +48,8 @@
       button:hover { border-color: var(--accent2); }
       button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
       button.primary:hover { filter: brightness(1.1); }
+      button.tab { background: transparent; }
+      button.tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
       button:disabled { opacity: .5; cursor: not-allowed; }
       main { max-width: 1000px; margin: 0 auto; padding: 24px; display: grid; gap: 20px; }
       .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
@@ -91,10 +93,22 @@
     </header>
 
     <main>
-      <!-- Coda di revisione -->
+      <!-- Contenuti -->
       <section class="card">
-        <h2>Coda di revisione · <span class="siteLabel" style="color:var(--accent2)"></span></h2>
+        <h2>Contenuti · <span class="siteLabel" style="color:var(--accent2)"></span></h2>
+        <div class="row" style="margin-bottom:12px">
+          <button id="tabDrafts" class="tab active">Da revisionare (<span id="cntDraft">–</span>)</button>
+          <button id="tabPub" class="tab">Archivio (<span id="cntPub">–</span>)</button>
+          <div style="flex:1"></div>
+          <input id="q" placeholder="Cerca titolo…" hidden style="min-width:200px" />
+          <select id="catFilter" hidden><option value="">Tutte le categorie</option></select>
+        </div>
         <div id="articles"><p class="muted">Carico…</p></div>
+        <div class="row" id="pager" hidden style="justify-content:center; gap:16px; margin-top:14px">
+          <button id="prevPage">← Precedenti</button>
+          <span id="pageInfo" class="muted"></span>
+          <button id="nextPage">Successivi →</button>
+        </div>
       </section>
 
       <!-- Scopri notizie -->
@@ -165,6 +179,12 @@
       let site = null;
       let currentDlgSlug = null;
       let articlesData = [];
+      // List view state: drafts are the default (short, actionable); the
+      // published archive is searched/filtered/paginated so the list stays small.
+      let listStatus = "draft";
+      let listPage = 1;
+      let listQ = "";
+      let listCat = "";
 
       async function loadSites() {
         const { sites } = await api("/api/sites");
@@ -183,13 +203,65 @@
         site = $("site").value || site;
         setSiteLabels();
         $("articles").innerHTML = '<p class="muted">Carico…</p>';
-        const { articles } = await api("/api/articles?site=" + encodeURIComponent(site));
-        articlesData = articles || [];
-        if (!articlesData.length) {
-          $("articles").innerHTML = '<p class="muted">Nessun articolo. Usa "Scopri notizie".</p>';
-          return;
+        const qs = new URLSearchParams({
+          site,
+          status: listStatus,
+          page: String(listPage),
+          q: listQ,
+          category: listCat,
+        });
+        const r = await api("/api/articles?" + qs);
+        articlesData = r.items || [];
+        if (r.counts) {
+          $("cntDraft").textContent = r.counts.draft;
+          $("cntPub").textContent = r.counts.published;
         }
-        $("articles").innerHTML = articlesData.map(renderArticle).join("");
+        fillCategories(r.categories || []);
+        if (!articlesData.length) {
+          $("articles").innerHTML = `<p class="muted">${
+            listStatus === "draft"
+              ? 'Nessuna bozza da revisionare. Usa "Scopri notizie".'
+              : "Nessun articolo trovato."
+          }</p>`;
+        } else {
+          $("articles").innerHTML = articlesData.map(renderArticle).join("");
+        }
+        renderPager(r.total || 0, r.page || 1, r.pageSize || 30);
+      }
+
+      function fillCategories(cats) {
+        const sel = $("catFilter");
+        const cur = sel.value;
+        sel.innerHTML =
+          '<option value="">Tutte le categorie</option>' +
+          cats.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+        sel.value = cur;
+      }
+
+      function renderPager(total, page, pageSize) {
+        const pages = Math.max(1, Math.ceil(total / pageSize));
+        const show = listStatus === "published" && pages > 1;
+        $("pager").hidden = !show;
+        if (show) {
+          $("pageInfo").textContent = `Pagina ${page} di ${pages} · ${total} articoli`;
+          $("prevPage").disabled = page <= 1;
+          $("nextPage").disabled = page >= pages;
+        }
+      }
+
+      function setStatus(status) {
+        listStatus = status;
+        listPage = 1;
+        listQ = "";
+        listCat = "";
+        $("q").value = "";
+        $("catFilter").value = "";
+        $("tabDrafts").classList.toggle("active", status === "draft");
+        $("tabPub").classList.toggle("active", status === "published");
+        const archive = status === "published";
+        $("q").hidden = !archive;
+        $("catFilter").hidden = !archive;
+        loadArticles();
       }
 
       function langTags(langs) {
@@ -330,7 +402,27 @@
         }
       }
 
-      $("site").onchange = loadArticles;
+      $("site").onchange = () => setStatus("draft");
+      $("tabDrafts").onclick = () => setStatus("draft");
+      $("tabPub").onclick = () => setStatus("published");
+      $("catFilter").onchange = () => {
+        listCat = $("catFilter").value;
+        listPage = 1;
+        loadArticles();
+      };
+      let qTimer;
+      $("q").addEventListener("input", () => {
+        clearTimeout(qTimer);
+        qTimer = setTimeout(() => {
+          listQ = $("q").value.trim();
+          listPage = 1;
+          loadArticles();
+        }, 300);
+      });
+      $("prevPage").onclick = () => {
+        if (listPage > 1) { listPage--; loadArticles(); }
+      };
+      $("nextPage").onclick = () => { listPage++; loadArticles(); };
       $("runDiscover").onclick = runDiscover;
       $("gitRefresh").onclick = gitRefresh;
       $("gitCommit").onclick = gitCommit;

@@ -81,11 +81,12 @@ interface ArticleRow {
   title: string;
   pubDate: string;
   category: string;
+  anyDraft: boolean;
   langs: Partial<Record<Locale, { draft: boolean }>>;
 }
 
-/** Build the review queue for a site, grouping translations by shared slug. */
-function listArticles(site: string): ArticleRow[] {
+/** Scan a site's article files into an index, grouping translations by slug. */
+function buildIndex(site: string): ArticleRow[] {
   const bySlug = new Map<string, ArticleRow>();
   for (const lang of LOCALES) {
     const dir = newsDir(site, lang);
@@ -101,6 +102,7 @@ function listArticles(site: string): ArticleRow[] {
           title: fm.title || slug,
           pubDate: fm.pubDate,
           category: fm.category,
+          anyDraft: false,
           langs: {},
         };
         bySlug.set(slug, row);
@@ -114,9 +116,30 @@ function listArticles(site: string): ArticleRow[] {
       row.langs[lang] = { draft: fm.draft };
     }
   }
-  return [...bySlug.values()].sort((a, b) =>
-    (b.pubDate || "").localeCompare(a.pubDate || ""),
-  );
+  const rows = [...bySlug.values()];
+  for (const r of rows) r.anyDraft = Object.values(r.langs).some((l) => l.draft);
+  rows.sort((a, b) => (b.pubDate || "").localeCompare(a.pubDate || ""));
+  return rows;
+}
+
+/*
+ * The index is cached per site so search/pagination don't re-scan the disk on
+ * every request — the whole point of scaling past a handful of articles. It is
+ * rebuilt lazily on first use and invalidated after any mutation (publish,
+ * discard, a discovery run). A human only ever acts on the small draft set; the
+ * published archive is served paginated + filtered from this in-memory index.
+ */
+const indexCache = new Map<string, ArticleRow[]>();
+function getIndex(site: string): ArticleRow[] {
+  let idx = indexCache.get(site);
+  if (!idx) {
+    idx = buildIndex(site);
+    indexCache.set(site, idx);
+  }
+  return idx;
+}
+function invalidateIndex(site: string): void {
+  indexCache.delete(site);
 }
 
 function readArticle(site: string, lang: Locale, slug: string): string {
@@ -187,11 +210,44 @@ async function handleApi(
     return sendJson(res, 200, { sites });
   }
 
-  // GET /api/articles?site=
+  // GET /api/articles?site=&status=draft|published&q=&category=&page=&pageSize=
   if (req.method === "GET" && url.pathname === "/api/articles") {
     const site = requireSite(url.searchParams.get("site"));
     if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
-    return sendJson(res, 200, { articles: listArticles(site) });
+    const all = getIndex(site);
+    const status = url.searchParams.get("status") ?? "draft";
+    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const category = url.searchParams.get("category") ?? "";
+    const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+    const pageSize = Math.min(
+      100,
+      Math.max(5, Number(url.searchParams.get("pageSize")) || 30),
+    );
+
+    let rows = all;
+    if (status === "draft") rows = rows.filter((r) => r.anyDraft);
+    else if (status === "published") rows = rows.filter((r) => !r.anyDraft);
+    if (category) rows = rows.filter((r) => r.category === category);
+    if (q) {
+      rows = rows.filter(
+        (r) => r.title.toLowerCase().includes(q) || r.slug.includes(q),
+      );
+    }
+
+    const total = rows.length;
+    const start = (page - 1) * pageSize;
+    const items = rows.slice(start, start + pageSize);
+    return sendJson(res, 200, {
+      items,
+      total,
+      page,
+      pageSize,
+      counts: {
+        draft: all.filter((r) => r.anyDraft).length,
+        published: all.filter((r) => !r.anyDraft).length,
+      },
+      categories: [...new Set(all.map((r) => r.category).filter(Boolean))].sort(),
+    });
   }
 
   // GET /api/article?site=&lang=&slug=
@@ -202,7 +258,7 @@ async function handleApi(
     if (!site || !LOCALES.includes(lang)) {
       return sendJson(res, 400, { error: "parametri non validi" });
     }
-    const known = listArticles(site).some((a) => a.slug === slug);
+    const known = getIndex(site).some((a) => a.slug === slug);
     if (!known) return sendJson(res, 404, { error: "articolo sconosciuto" });
     return sendJson(res, 200, { content: readArticle(site, lang, slug) });
   }
@@ -213,7 +269,7 @@ async function handleApi(
     const site = requireSite(String(body.site ?? ""));
     const slug = String(body.slug ?? "");
     if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
-    if (!listArticles(site).some((a) => a.slug === slug)) {
+    if (!getIndex(site).some((a) => a.slug === slug)) {
       return sendJson(res, 400, { error: "slug sconosciuto" });
     }
     const r = await run(
@@ -221,6 +277,7 @@ async function handleApi(
       ["tsx", "src/index.ts", "publish", "--site", site, "--slug", slug],
       pipelineDir,
     );
+    if (r.code === 0) invalidateIndex(site);
     return sendJson(res, r.code === 0 ? 200 : 500, {
       ok: r.code === 0,
       output: r.output,
@@ -234,7 +291,7 @@ async function handleApi(
     const site = requireSite(String(body.site ?? ""));
     const slug = String(body.slug ?? "");
     if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
-    const row = listArticles(site).find((a) => a.slug === slug);
+    const row = getIndex(site).find((a) => a.slug === slug);
     if (!row) return sendJson(res, 400, { error: "slug sconosciuto" });
     const allDraft = Object.values(row.langs).every((l) => l.draft);
     if (!allDraft) {
@@ -266,6 +323,7 @@ async function handleApi(
         // state pruning is best-effort
       }
     }
+    invalidateIndex(site);
     return sendJson(res, 200, { ok: true, removed });
   }
 
@@ -314,6 +372,7 @@ async function handleApi(
     child.stderr.on("data", pump);
     child.on("close", (code) => {
       if (buffer) send(buffer);
+      invalidateIndex(site); // a run may have written new drafts
       res.write(`event: done\ndata: ${code ?? 0}\n\n`);
       res.end();
     });
