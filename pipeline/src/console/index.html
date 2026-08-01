@@ -93,13 +93,13 @@
     <main>
       <!-- Coda di revisione -->
       <section class="card">
-        <h2>Coda di revisione</h2>
+        <h2>Coda di revisione · <span class="siteLabel" style="color:var(--accent2)"></span></h2>
         <div id="articles"><p class="muted">Carico…</p></div>
       </section>
 
       <!-- Scopri notizie -->
       <section class="card">
-        <h2>Scopri notizie</h2>
+        <h2>Scopri notizie · <span class="siteLabel" style="color:var(--accent2)"></span></h2>
         <div class="row">
           <div class="field"><label>Freschezza</label>
             <select id="freshness">
@@ -126,11 +126,12 @@
 
       <!-- Pubblica online -->
       <section class="card">
-        <h2>Pubblica online</h2>
+        <h2>Pubblica online · <span id="gitSite" style="color:var(--accent2)"></span></h2>
         <div class="row">
           <button id="gitRefresh">↻ Cosa cambierà</button>
           <button class="primary" id="gitCommit">⬆ Commit + push</button>
         </div>
+        <p class="muted" style="margin:8px 0 0; font-size:12.5px">Committa e pubblica i contenuti del solo sito selezionato.</p>
         <pre class="output" id="gitOut" hidden></pre>
         <p class="muted" style="margin-top:14px">
           Deploy sulla VM (manuale, da WSL):
@@ -172,8 +173,15 @@
         await loadArticles();
       }
 
+      function setSiteLabels() {
+        document.querySelectorAll(".siteLabel").forEach((el) => (el.textContent = site));
+        $("gitSite").textContent = site;
+        $("gitOut").hidden = true; // git output belongs to a site; clear on switch
+      }
+
       async function loadArticles() {
         site = $("site").value || site;
+        setSiteLabels();
         $("articles").innerHTML = '<p class="muted">Carico…</p>';
         const { articles } = await api("/api/articles?site=" + encodeURIComponent(site));
         articlesData = articles || [];
@@ -291,16 +299,20 @@
         const out = $("gitOut");
         out.hidden = false;
         out.textContent = "…";
-        const r = await api("/api/git/status");
-        out.textContent = r.output ? r.output : "Niente da committare (nessuna modifica ai contenuti).";
+        const r = await api("/api/git/status?site=" + encodeURIComponent(site));
+        out.textContent = r.output ? r.output : `Niente da committare per ${site} (nessuna modifica ai contenuti).`;
       }
 
       async function gitCommit() {
-        if (!confirm("Committare e fare push dei contenuti su GitHub?")) return;
+        if (!confirm(`Committare e fare push dei contenuti di «${site}» su GitHub?`)) return;
         const out = $("gitOut");
         out.hidden = false;
         out.textContent = "Commit + push in corso…";
-        const r = await api("/api/git/commit", { method: "POST" });
+        const r = await api("/api/git/commit", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ site }),
+        });
         out.textContent = r.output || r.error || (r.ok ? "Fatto." : "Errore.");
       }
 

@@ -321,25 +321,37 @@ async function handleApi(
     return;
   }
 
-  // GET /api/git/status — content changes only
+  // GET /api/git/status?site= — content changes for THIS site only
   if (req.method === "GET" && url.pathname === "/api/git/status") {
-    const r = await run("git", ["status", "--short", "--", "sites"], repoRoot);
+    const site = requireSite(url.searchParams.get("site"));
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    const scope = `sites/${site}/src/content/news`;
+    const r = await run("git", ["status", "--short", "--", scope], repoRoot);
     return sendJson(res, 200, { output: r.output.trim() });
   }
 
-  // POST /api/git/commit — add sites content, commit (auto msg), push
+  // POST /api/git/commit {site} — add/commit/push ONLY this site's content.
+  // Scoped on purpose: you work one site at a time, so a commit never sweeps in
+  // another site's changes.
   if (req.method === "POST" && url.pathname === "/api/git/commit") {
+    const body = await readBody(req);
+    const site = requireSite(String(body.site ?? ""));
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    const scope = `sites/${site}/src/content/news`;
     const status = await run(
       "git",
-      ["status", "--porcelain", "--", "sites"],
+      ["status", "--porcelain", "--", scope],
       repoRoot,
     );
     if (!status.output.trim()) {
-      return sendJson(res, 200, { ok: true, output: "Niente da committare." });
+      return sendJson(res, 200, {
+        ok: true,
+        output: `Niente da committare per ${site}.`,
+      });
     }
-    const add = await run("git", ["add", "--", "sites"], repoRoot);
+    const add = await run("git", ["add", "--", scope], repoRoot);
     if (add.code !== 0) return sendJson(res, 500, { ok: false, output: add.output });
-    const msg = "Update site content via console";
+    const msg = `Update ${site} content via console`;
     const commit = await run("git", ["commit", "-m", `"${msg}"`], repoRoot);
     if (commit.code !== 0) {
       return sendJson(res, 500, { ok: false, output: commit.output });
