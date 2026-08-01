@@ -6,7 +6,7 @@ category: "epic"
 sources:
   - "https://gg.deals/freebie/get-sol-cesto-and-otxo-free-thanks-to-epic-games-latest-giveaway/'"
   - "https://www.neowin.net/news/two-roguelite-games-are-free-to-claim-on-the-epic-games-store-this-week/','https--store-store-store/'"
-draft: true
+draft: false
 ---
 
 ## Due roguelike disponibili gratuitamente
