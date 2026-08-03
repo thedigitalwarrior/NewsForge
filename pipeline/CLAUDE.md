@@ -48,9 +48,11 @@ qualunque backend — anche un LLM locale senza web search — e rispetta il vin
 - `src/publish.ts` — coda di revisione: `review` (elenca stato) e `publish` (draft:true→false).
 - `src/console/` — console web LOCALE (`npm run console`, o doppio click su `console.cmd` in
   root): coda bozze/archivio (ricerca+paginazione), pubblica/scarta, **scoperta a due fasi**
-  (trova candidati → l'umano spunta → genera i selezionati), commit+push per-sito. Server HTTP
-  su `127.0.0.1:4455` (solo built-in Node). Il deploy resta manuale (mostrato, non eseguito).
-  La scoperta candidati usa `discover --json` (triage+dedup, nessuna generazione).
+  (trova candidati → l'umano spunta → genera i selezionati), immagine per articolo
+  (finder ufficiale + URL/upload manuale), commit+push per-sito. Server HTTP su
+  `127.0.0.1:4455` (solo built-in Node). Il deploy resta manuale (mostrato, non eseguito).
+  La scoperta candidati usa `discover --json`; le immagini `image --slug --json` (Steam via
+  appid nelle fonti o ricerca per titolo; og:image da domini ufficiali whitelistati).
 
 ## Flusso di un run (`generate`)
 

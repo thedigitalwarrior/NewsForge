@@ -4,7 +4,7 @@ import { generate } from "./generate.js";
 import { discover } from "./discover.js";
 import { publish, review } from "./publish.js";
 import { resolveTaskProviders } from "./providers/index.js";
-import { findImageCandidates, readArticleSources } from "./images.js";
+import { findImageCandidates, readArticleMeta } from "./images.js";
 
 // Load pipeline/.env if present (ANTHROPIC_API_KEY, BRAVE_API_KEY).
 try {
@@ -130,8 +130,12 @@ async function main(): Promise<void> {
         console.error("image: --slug <slug> obbligatorio");
         process.exit(1);
       }
-      const sources = readArticleSources(values.site, values.slug);
-      const candidates = await findImageCandidates(values.site, sources);
+      const meta = readArticleMeta(values.site, values.slug);
+      const candidates = await findImageCandidates(
+        values.site,
+        meta.sources,
+        meta.title,
+      );
       process.stdout.write(`\n__IMAGES__${JSON.stringify({ candidates })}\n`);
       break;
     }

@@ -33,8 +33,11 @@ function hostOf(u: string): string {
   }
 }
 
-/** Read the source URLs from a draft's canonical-locale frontmatter. */
-export function readArticleSources(siteSlug: string, slug: string): string[] {
+/** Read title + source URLs from a draft's canonical-locale frontmatter. */
+export function readArticleMeta(
+  siteSlug: string,
+  slug: string,
+): { title: string; sources: string[] } {
   const site = getSite(siteSlug);
   const file = path.join(
     repoRoot,
@@ -46,51 +49,97 @@ export function readArticleSources(siteSlug: string, slug: string): string[] {
     site.canonicalLocale,
     `${slug}.md`,
   );
-  if (!existsSync(file)) return [];
+  if (!existsSync(file)) return { title: "", sources: [] };
   const text = readFileSync(file, "utf8");
   const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!fm) return [];
+  if (!fm) return { title: "", sources: [] };
   const block = fm[1];
-  const m = block.match(/^sources:\s*\n((?:\s*-\s*.*\n?)+)/m);
-  if (!m) return [];
-  return [...m[1].matchAll(/-\s*["']?([^"'\n]+)["']?\s*$/gm)].map((x) =>
-    x[1].trim(),
-  );
+  const titleM = block.match(/^title:\s*["']?(.*?)["']?\s*$/m);
+  const title = titleM ? titleM[1].trim() : "";
+  const sm = block.match(/^sources:\s*\n((?:\s*-\s*.*\n?)+)/m);
+  const sources = sm
+    ? [...sm[1].matchAll(/-\s*["']?([^"'\n]+)["']?\s*$/gm)].map((x) => x[1].trim())
+    : [];
+  return { title, sources };
 }
 
-async function steamCandidates(sources: string[]): Promise<ImageCandidate[]> {
+/** Official assets for one Steam appid (header + a few screenshots). */
+async function steamAssetsForApp(
+  appid: string,
+  suffix: string,
+  maxShots: number,
+): Promise<ImageCandidate[]> {
+  const out: ImageCandidate[] = [];
+  try {
+    const res = await fetch(
+      `https://store.steampowered.com/api/appdetails?appids=${appid}&l=english`,
+      { headers: { "user-agent": UA } },
+    );
+    const data = (await res.json()) as Record<
+      string,
+      { data?: { name?: string; header_image?: string; screenshots?: { path_full?: string }[] } }
+    >;
+    const d = data?.[appid]?.data;
+    if (!d) return out;
+    const name = d.name ?? "gioco";
+    if (d.header_image) {
+      out.push({ url: d.header_image, provider: "steam", label: `${name} — header${suffix}` });
+    }
+    for (const s of (d.screenshots ?? []).slice(0, maxShots)) {
+      if (s.path_full) {
+        out.push({ url: s.path_full, provider: "steam", label: `${name} — screenshot${suffix}` });
+      }
+    }
+  } catch {
+    // unresolved appid is skipped
+  }
+  return out;
+}
+
+/** Steam assets from an appid found directly in the article's source URLs. */
+async function steamFromUrls(sources: string[]): Promise<ImageCandidate[]> {
   const out: ImageCandidate[] = [];
   const seen = new Set<string>();
   for (const src of sources) {
     const m = src.match(STEAM_APP_RE);
     if (!m || seen.has(m[1])) continue;
-    const appid = m[1];
-    seen.add(appid);
-    try {
-      const res = await fetch(
-        `https://store.steampowered.com/api/appdetails?appids=${appid}&l=english`,
-        { headers: { "user-agent": UA } },
-      );
-      const data = (await res.json()) as Record<
-        string,
-        { data?: { name?: string; header_image?: string; screenshots?: { path_full?: string }[] } }
-      >;
-      const d = data?.[appid]?.data;
-      if (!d) continue;
-      const name = d.name ?? "gioco";
-      if (d.header_image) {
-        out.push({ url: d.header_image, provider: "steam", label: `${name} — header` });
-      }
-      for (const s of (d.screenshots ?? []).slice(0, 4)) {
-        if (s.path_full) {
-          out.push({ url: s.path_full, provider: "steam", label: `${name} — screenshot` });
-        }
-      }
-    } catch {
-      // a source that doesn't resolve is skipped
-    }
+    seen.add(m[1]);
+    out.push(...(await steamAssetsForApp(m[1], "", 4)));
   }
   return out;
+}
+
+/** Strip the giveaway boilerplate off a headline to recover the game name. */
+export function gameNameFromTitle(title: string): string {
+  // Split on spaced headline separators only (keep ":" — game subtitles use it).
+  const base = title.split(/\s+[-–—|]\s+/)[0].trim();
+  const marker =
+    /\s+\b(is|are|available|free|now|gets?|goes?|hits?|comes?|coming|launch(?:es|ing)?|releases?|joins?|arrives?|leaving|on|for|this|until|will|can|you|to)\b/i;
+  const m = base.match(marker);
+  const name = m && m.index && m.index > 1 ? base.slice(0, m.index).trim() : base;
+  return name.length >= 2 ? name : base;
+}
+
+/** Fallback: resolve the game by NAME via Steam search, then fetch its assets. */
+async function steamFromTitle(title: string): Promise<ImageCandidate[]> {
+  const term = gameNameFromTitle(title);
+  if (!term) return [];
+  try {
+    const res = await fetch(
+      `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&cc=us&l=english`,
+      { headers: { "user-agent": UA } },
+    );
+    const data = (await res.json()) as { items?: { id?: number; name?: string }[] };
+    const items = (data.items ?? []).filter((i) => i.id).slice(0, 2);
+    const out: ImageCandidate[] = [];
+    for (let i = 0; i < items.length; i++) {
+      // header for each match; screenshots only for the top match
+      out.push(...(await steamAssetsForApp(String(items[i].id), " (ricerca)", i === 0 ? 3 : 0)));
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 async function ogImageCandidates(
@@ -151,13 +200,18 @@ export function filterOfficialUrls(urls: string[], domains: string[]): string[] 
 export async function findImageCandidates(
   siteSlug: string,
   sources: string[],
+  title = "",
 ): Promise<ImageCandidate[]> {
   const site = getSite(siteSlug);
   const strategies = site.imageSources ?? [];
   const out: ImageCandidate[] = [];
   for (const s of strategies) {
-    if (s === "steam") out.push(...(await steamCandidates(sources)));
-    else if (s === "ogimage") {
+    if (s === "steam") {
+      const fromUrls = await steamFromUrls(sources);
+      out.push(...fromUrls);
+      // Fallback: if no source linked the Steam page, resolve the game by name.
+      if (fromUrls.length === 0 && title) out.push(...(await steamFromTitle(title)));
+    } else if (s === "ogimage") {
       out.push(...(await ogImageCandidates(sources, site.officialImageDomains ?? [])));
     }
   }
