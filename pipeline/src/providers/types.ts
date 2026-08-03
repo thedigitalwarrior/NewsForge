@@ -6,6 +6,8 @@ export interface SourceDoc {
   url: string;
   title: string;
   text: string;
+  /** Outbound links found in the article body (used to harvest official store/maker pages). */
+  links?: string[];
 }
 
 export interface GenerationRequest {

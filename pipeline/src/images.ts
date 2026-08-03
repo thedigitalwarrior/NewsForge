@@ -125,6 +125,28 @@ async function ogImageCandidates(
   return out;
 }
 
+/**
+ * Keep only URLs on an official domain with a real path (drops bare homepages).
+ * Used to enrich an article's sources with the official store/maker page that the
+ * news sources link to, so the image finder can resolve official assets.
+ */
+export function filterOfficialUrls(urls: string[], domains: string[]): string[] {
+  const allowed = (h: string): boolean =>
+    domains.some((d) => h === d || h.endsWith("." + d));
+  const out = new Set<string>();
+  for (const u of urls) {
+    const h = hostOf(u);
+    if (!h || !allowed(h)) continue;
+    try {
+      if (new URL(u).pathname.replace(/\/+$/, "").length <= 0) continue;
+    } catch {
+      continue;
+    }
+    out.add(u);
+  }
+  return [...out];
+}
+
 /** Official image candidates for an article's sources, per the site's strategies. */
 export async function findImageCandidates(
   siteSlug: string,

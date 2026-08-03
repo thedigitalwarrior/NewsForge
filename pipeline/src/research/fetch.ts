@@ -18,6 +18,23 @@ export async function fetchSource(url: string): Promise<SourceDoc> {
 
   const html = await res.text();
   const $ = cheerio.load(html);
+
+  // Harvest outbound links from the WHOLE page before stripping chrome: a news
+  // piece about a giveaway almost always links to the official store/product
+  // page (sometimes in a sidebar/box), which we later add as a source so the
+  // image finder can reach the official assets. The strict official-domain
+  // filter downstream keeps only the real store/maker links.
+  const links = new Set<string>();
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href");
+    if (!href) return;
+    try {
+      links.add(new URL(href, url).href);
+    } catch {
+      // ignore unparseable hrefs
+    }
+  });
+
   $("script, style, nav, header, footer, aside, form, noscript").remove();
 
   const title = (
@@ -32,7 +49,7 @@ export async function fetchSource(url: string): Promise<SourceDoc> {
 
   const text = container.text().replace(/\s+/g, " ").trim().slice(0, MAX_CHARS);
 
-  return { url, title, text };
+  return { url, title, text, links: [...links].slice(0, 300) };
 }
 
 /** Fetch several sources, skipping (with a warning) any that fail. */

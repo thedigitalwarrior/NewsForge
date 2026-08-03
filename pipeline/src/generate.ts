@@ -5,6 +5,7 @@ import { buildArticleSchema } from "./article.js";
 import { getSite, localeNames } from "./sites.js";
 import type { TaskProviders } from "./providers/index.js";
 import { fetchSources } from "./research/fetch.js";
+import { filterOfficialUrls } from "./images.js";
 import { buildInstructions, newsBriefSystem } from "./prompts/news-brief.js";
 import { translateSystem } from "./prompts/translate.js";
 import { toMarkdown } from "./lib/frontmatter.js";
@@ -103,6 +104,22 @@ export async function generate(
 
   const article = schema.parse(draft) as ArticleDraft;
   logUsage(`${providers.generate.name} · canonico`, usage);
+
+  // Enrich sources with the official store/maker page the news sources link to.
+  // This is the primary source of the event (and lets the image finder reach the
+  // official assets). Added, deduped, without displacing the synthesized sources.
+  const harvested = sources.flatMap((s) => s.links ?? []);
+  const official = filterOfficialUrls(harvested, site.officialImageDomains ?? []);
+  if (official.length) {
+    const have = new Set(article.sources.map(normalizeUrl));
+    const add = official
+      .filter((u) => !have.has(normalizeUrl(u)))
+      .slice(0, 2);
+    if (add.length) {
+      article.sources = [...article.sources, ...add].slice(0, 6);
+      console.log(`  ↳ fonti arricchite con pagina ufficiale: ${add.join(", ")}`);
+    }
+  }
 
   // Slug from the canonical title, SHARED across languages (translation key).
   const slug = slugify(article.title);
