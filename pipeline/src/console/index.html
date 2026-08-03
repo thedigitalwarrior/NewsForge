@@ -77,6 +77,11 @@
         border-radius: 12px; max-width: 720px; width: 92%;
       }
       dialog::backdrop { background: rgba(0,0,0,.6); }
+      .imgGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 300px; overflow: auto; }
+      .imgThumb { border: 2px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: #0b1220; }
+      .imgThumb.sel { border-color: var(--accent); }
+      .imgThumb img { width: 100%; height: 88px; object-fit: cover; display: block; background: #0b1220; }
+      .imgThumb .cap { font-size: 10.5px; color: var(--muted); padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       label small { display: block; color: var(--muted); font-size: 11.5px; }
       .field { display: flex; flex-direction: column; gap: 4px; }
       a { color: var(--accent2); }
@@ -161,6 +166,29 @@
         </div>
       </section>
     </main>
+
+    <!-- Immagine articolo -->
+    <dialog id="imageDlg">
+      <div class="row" style="justify-content:space-between">
+        <strong id="imgDlgTitle">Immagine</strong>
+        <button onclick="document.getElementById('imageDlg').close()">Chiudi</button>
+      </div>
+      <p class="muted" style="margin:6px 0 10px">Scegli un'immagine ufficiale suggerita, incolla un URL, o carica un file. Il testo alternativo è obbligatorio.</p>
+      <div id="imgCandidates" class="imgGrid"><p class="muted">…</p></div>
+      <div class="field" style="margin-top:12px"><label>Oppure URL immagine</label>
+        <input id="imgUrl" placeholder="https://…" />
+      </div>
+      <div class="field" style="margin-top:8px"><label>Oppure carica un file</label>
+        <input id="imgFile" type="file" accept="image/*" />
+      </div>
+      <div class="field" style="margin-top:8px"><label>Testo alternativo (obbligatorio)</label>
+        <input id="imgAlt" placeholder="Descrizione dell'immagine" />
+      </div>
+      <div class="row" style="margin-top:14px">
+        <span id="imgMsg" class="muted" style="flex:1"></span>
+        <button class="primary" id="imgSaveBtn">Salva immagine</button>
+      </div>
+    </dialog>
 
     <!-- Preview articolo -->
     <dialog id="articleDlg">
@@ -287,6 +315,7 @@
             <div class="sub">${a.pubDate || "—"} · ${a.category || "—"} · ${langTags(a.langs)}</div>
           </div>
           <button data-act="view" data-slug="${esc(a.slug)}">Anteprima</button>
+          <button data-act="image" data-slug="${esc(a.slug)}" title="Imposta immagine">🖼</button>
           ${actions}
         </div>`;
       }
@@ -300,6 +329,7 @@
         if (btn.dataset.act === "view") viewArticle(slug);
         else if (btn.dataset.act === "publish") publish(slug);
         else if (btn.dataset.act === "discard") discard(slug);
+        else if (btn.dataset.act === "image") openImageDialog(slug);
       });
 
       const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -324,6 +354,96 @@
         });
         if (!r.ok) alert("Errore: " + (r.error || ""));
         await loadArticles();
+      }
+
+      let imgDlgSlug = null;
+      let imgChosenUrl = null;
+
+      async function openImageDialog(slug) {
+        imgDlgSlug = slug;
+        imgChosenUrl = null;
+        const a = articlesData.find((x) => x.slug === slug);
+        $("imgDlgTitle").textContent = "Immagine · " + (a ? a.title : slug);
+        $("imgUrl").value = "";
+        $("imgAlt").value = "";
+        $("imgFile").value = "";
+        $("imgMsg").textContent = "";
+        $("imgSaveBtn").disabled = false;
+        $("imgCandidates").innerHTML =
+          '<p class="muted">Cerco immagini ufficiali dalle fonti…</p>';
+        $("imageDlg").showModal();
+        const r = await api(
+          `/api/image-candidates?site=${encodeURIComponent(site)}&slug=${encodeURIComponent(slug)}`,
+        );
+        if (r.error) {
+          $("imgCandidates").innerHTML = `<p class="muted">${esc(r.error)}</p>`;
+          return;
+        }
+        const cs = r.candidates || [];
+        if (!cs.length) {
+          $("imgCandidates").innerHTML =
+            '<p class="muted">Nessuna immagine ufficiale dalle fonti. Usa un URL o carica un file.</p>';
+          return;
+        }
+        $("imgCandidates").innerHTML = cs
+          .map(
+            (c) =>
+              `<div class="imgThumb" data-url="${esc(c.url)}"><img src="${esc(c.url)}" loading="lazy" referrerpolicy="no-referrer" /><div class="cap">${esc(c.label)}</div></div>`,
+          )
+          .join("");
+      }
+
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const rd = new FileReader();
+          rd.onload = () => resolve(String(rd.result).split(",")[1]);
+          rd.onerror = reject;
+          rd.readAsDataURL(file);
+        });
+      }
+
+      async function saveArticleImage() {
+        const alt = $("imgAlt").value.trim();
+        if (!alt) {
+          $("imgMsg").textContent = "Il testo alternativo è obbligatorio.";
+          return;
+        }
+        const file = $("imgFile").files[0];
+        const manualUrl = $("imgUrl").value.trim();
+        const chosen = imgChosenUrl || manualUrl;
+        if (!file && !chosen) {
+          $("imgMsg").textContent = "Scegli un'immagine, incolla un URL o carica un file.";
+          return;
+        }
+        $("imgSaveBtn").disabled = true;
+        $("imgMsg").textContent = "Salvo…";
+        let r;
+        try {
+          if (file) {
+            const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+            const dataBase64 = await fileToBase64(file);
+            r = await api("/api/image-upload", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ site, slug: imgDlgSlug, ext, dataBase64, alt }),
+            });
+          } else {
+            r = await api("/api/image-set", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ site, slug: imgDlgSlug, url: chosen, alt }),
+            });
+          }
+        } catch (e) {
+          r = { error: String(e) };
+        }
+        $("imgSaveBtn").disabled = false;
+        if (r.ok) {
+          $("imageDlg").close();
+          loadArticles();
+        } else {
+          $("imgMsg").textContent = "Errore: " + (r.error || "");
+        }
       }
 
       async function viewArticle(slug) {
@@ -499,6 +619,19 @@
       $("findBtn").onclick = findCandidates;
       $("genSelBtn").onclick = generateSelected;
       $("candidates").addEventListener("change", updateGenCount);
+      $("imgSaveBtn").onclick = saveArticleImage;
+      $("imgCandidates").addEventListener("click", (e) => {
+        const t = e.target.closest(".imgThumb");
+        if (!t) return;
+        imgChosenUrl = t.dataset.url;
+        $("imgUrl").value = "";
+        [...$("imgCandidates").children].forEach((el) => el.classList.remove("sel"));
+        t.classList.add("sel");
+      });
+      $("imgUrl").addEventListener("input", () => {
+        imgChosenUrl = null;
+        [...$("imgCandidates").children].forEach((el) => el.classList.remove("sel"));
+      });
       $("gitRefresh").onclick = gitRefresh;
       $("gitCommit").onclick = gitCommit;
       $("previewBtn").onclick = preview;

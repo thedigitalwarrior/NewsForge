@@ -15,6 +15,7 @@ import {
   readFileSync,
   writeFileSync,
   unlinkSync,
+  mkdirSync,
   readdirSync,
   existsSync,
   statSync,
@@ -148,6 +149,75 @@ function readArticle(site: string, lang: Locale, slug: string): string {
     if (existsSync(file)) return readFileSync(file, "utf8");
   }
   return "";
+}
+
+// ---- image helpers -----------------------------------------------------------
+
+const IMG_EXTS = ["jpg", "jpeg", "png", "webp", "gif", "avif"];
+
+function publicImagesDir(site: string): string {
+  return path.join(sitesDir, site, "public", "images");
+}
+
+/** Git pathspecs that make up a site's committable content (articles + images). */
+function contentScopes(site: string): string[] {
+  return [`sites/${site}/src/content/news`, `sites/${site}/public/images`];
+}
+
+function extFor(contentType: string, url: string): string {
+  const ct = contentType.toLowerCase();
+  if (ct.includes("jpeg")) return "jpg";
+  if (ct.includes("png")) return "png";
+  if (ct.includes("webp")) return "webp";
+  if (ct.includes("avif")) return "avif";
+  if (ct.includes("gif")) return "gif";
+  const m = url.match(/\.(jpe?g|png|webp|gif|avif)(?:\?|#|$)/i);
+  return m ? m[1].toLowerCase().replace("jpeg", "jpg") : "jpg";
+}
+
+/** Save image bytes to the site's public/images/<slug>.<ext>; return the URL path. */
+function saveImage(site: string, slug: string, buf: Buffer, ext: string): string {
+  const dir = publicImagesDir(site);
+  mkdirSync(dir, { recursive: true });
+  for (const e of IMG_EXTS) {
+    const p = path.join(dir, `${slug}.${e}`);
+    if (existsSync(p)) unlinkSync(p); // avoid orphan of a previous extension
+  }
+  writeFileSync(path.join(dir, `${slug}.${ext}`), buf);
+  return `/images/${slug}.${ext}`;
+}
+
+function upsertFmLine(block: string, key: string, value: string): string {
+  const line = `${key}: ${JSON.stringify(value)}`;
+  const re = new RegExp(`^${key}:.*$`, "m");
+  if (re.test(block)) return block.replace(re, line);
+  return `${block.replace(/\r?\n?$/, "")}\n${line}`;
+}
+
+/** Set image + imageAlt in the frontmatter of every locale file for a slug. */
+function setImageFrontmatter(
+  site: string,
+  slug: string,
+  imagePath: string,
+  alt: string,
+): string[] {
+  const changed: string[] = [];
+  for (const lang of LOCALES) {
+    for (const ext of ["md", "mdx"]) {
+      const f = path.join(newsDir(site, lang), `${slug}.${ext}`);
+      if (!existsSync(f)) continue;
+      const text = readFileSync(f, "utf8");
+      const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      if (!fm) continue;
+      let block = fm[1];
+      block = upsertFmLine(block, "image", imagePath);
+      block = upsertFmLine(block, "imageAlt", alt);
+      const rebuilt = `---\n${block}\n---` + text.slice(fm[0].length);
+      writeFileSync(f, rebuilt);
+      changed.push(`${lang}/${slug}.${ext}`);
+    }
+  }
+  return changed;
 }
 
 // ---- process helpers ---------------------------------------------------------
@@ -435,12 +505,104 @@ async function handleApi(
     });
   }
 
+  // GET /api/image-candidates?site=&slug= — official image suggestions for a draft
+  if (req.method === "GET" && url.pathname === "/api/image-candidates") {
+    const site = requireSite(url.searchParams.get("site"));
+    const slug = url.searchParams.get("slug") ?? "";
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    if (!getIndex(site).some((a) => a.slug === slug)) {
+      return sendJson(res, 400, { error: "slug sconosciuto" });
+    }
+    const r = await runCapture(
+      "npx",
+      ["tsx", "src/index.ts", "image", "--site", site, "--slug", slug, "--json"],
+      pipelineDir,
+    );
+    const marker = "__IMAGES__";
+    const idx = r.stdout.lastIndexOf(marker);
+    if (idx < 0) {
+      return sendJson(res, 500, {
+        error: "ricerca immagini fallita",
+        output: (r.stderr || r.stdout).slice(-1200),
+      });
+    }
+    try {
+      const parsed = JSON.parse(r.stdout.slice(idx + marker.length).trim());
+      return sendJson(res, 200, { candidates: parsed.candidates ?? [] });
+    } catch {
+      return sendJson(res, 500, { error: "output immagini non parsabile" });
+    }
+  }
+
+  // POST /api/image-set {site, slug, url, alt} — download an image and set it
+  if (req.method === "POST" && url.pathname === "/api/image-set") {
+    const body = await readBody(req);
+    const site = requireSite(String(body.site ?? ""));
+    const slug = String(body.slug ?? "");
+    const imgUrl = String(body.url ?? "");
+    const alt = String(body.alt ?? "").trim();
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    if (!getIndex(site).some((a) => a.slug === slug)) {
+      return sendJson(res, 400, { error: "slug sconosciuto" });
+    }
+    if (!/^https?:\/\//i.test(imgUrl)) {
+      return sendJson(res, 400, { error: "URL immagine non valido" });
+    }
+    if (!alt) return sendJson(res, 400, { error: "testo alternativo obbligatorio" });
+    try {
+      const resp = await fetch(imgUrl, {
+        headers: { "user-agent": "NewsForgeBot/1.0" },
+      });
+      if (!resp.ok) {
+        return sendJson(res, 502, { error: `download fallito (HTTP ${resp.status})` });
+      }
+      const buf = Buffer.from(await resp.arrayBuffer());
+      if (buf.length > 12_000_000) {
+        return sendJson(res, 413, { error: "immagine troppo grande" });
+      }
+      const ext = extFor(resp.headers.get("content-type") ?? "", imgUrl);
+      const imagePath = saveImage(site, slug, buf, ext);
+      const changed = setImageFrontmatter(site, slug, imagePath, alt);
+      invalidateIndex(site);
+      return sendJson(res, 200, { ok: true, image: imagePath, changed });
+    } catch (err) {
+      return sendJson(res, 502, { error: `download fallito: ${String(err)}` });
+    }
+  }
+
+  // POST /api/image-upload {site, slug, ext, dataBase64, alt} — save a local file
+  if (req.method === "POST" && url.pathname === "/api/image-upload") {
+    const body = await readBody(req);
+    const site = requireSite(String(body.site ?? ""));
+    const slug = String(body.slug ?? "");
+    const ext = String(body.ext ?? "").toLowerCase().replace("jpeg", "jpg");
+    const alt = String(body.alt ?? "").trim();
+    const dataBase64 = String(body.dataBase64 ?? "");
+    if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
+    if (!getIndex(site).some((a) => a.slug === slug)) {
+      return sendJson(res, 400, { error: "slug sconosciuto" });
+    }
+    if (!IMG_EXTS.includes(ext)) {
+      return sendJson(res, 400, { error: "formato immagine non supportato" });
+    }
+    if (!alt) return sendJson(res, 400, { error: "testo alternativo obbligatorio" });
+    const buf = Buffer.from(dataBase64, "base64");
+    if (!buf.length) return sendJson(res, 400, { error: "file vuoto" });
+    if (buf.length > 12_000_000) {
+      return sendJson(res, 413, { error: "immagine troppo grande" });
+    }
+    const imagePath = saveImage(site, slug, buf, ext);
+    const changed = setImageFrontmatter(site, slug, imagePath, alt);
+    invalidateIndex(site);
+    return sendJson(res, 200, { ok: true, image: imagePath, changed });
+  }
+
   // GET /api/git/status?site= — content changes for THIS site only
   if (req.method === "GET" && url.pathname === "/api/git/status") {
     const site = requireSite(url.searchParams.get("site"));
     if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
-    const scope = `sites/${site}/src/content/news`;
-    const r = await run("git", ["status", "--short", "--", scope], repoRoot);
+    const scopes = contentScopes(site);
+    const r = await run("git", ["status", "--short", "--", ...scopes], repoRoot);
     return sendJson(res, 200, { output: r.output.trim() });
   }
 
@@ -451,10 +613,10 @@ async function handleApi(
     const body = await readBody(req);
     const site = requireSite(String(body.site ?? ""));
     if (!site) return sendJson(res, 400, { error: "sito sconosciuto" });
-    const scope = `sites/${site}/src/content/news`;
+    const scopes = contentScopes(site);
     const status = await run(
       "git",
-      ["status", "--porcelain", "--", scope],
+      ["status", "--porcelain", "--", ...scopes],
       repoRoot,
     );
     if (!status.output.trim()) {
@@ -463,7 +625,7 @@ async function handleApi(
         output: `Niente da committare per ${site}.`,
       });
     }
-    const add = await run("git", ["add", "--", scope], repoRoot);
+    const add = await run("git", ["add", "--", ...scopes], repoRoot);
     if (add.code !== 0) return sendJson(res, 500, { ok: false, output: add.output });
     const msg = `Update ${site} content via console`;
     const commit = await run("git", ["commit", "-m", `"${msg}"`], repoRoot);
