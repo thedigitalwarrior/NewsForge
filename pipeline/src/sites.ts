@@ -23,6 +23,15 @@ export interface SiteDefinition {
    */
   searchCountry: string;
   /**
+   * Ordered strategies for finding OFFICIAL images (human picks in the console):
+   * - "steam": official store assets via the Steam appid found in the sources.
+   * - "ogimage": the og:image of a source page, but ONLY when that source is on
+   *   an official domain (officialImageDomains) — e.g. the maker's newsroom.
+   */
+  imageSources?: ("steam" | "ogimage")[];
+  /** Domains treated as "official" for the ogimage strategy (maker/store sites). */
+  officialImageDomains?: string[];
+  /**
    * Editorial scope, in prose, for the LLM relevance filter: what belongs on this
    * site and what does not. This is a judgment call, so it's the LLM's job — not
    * embedding similarity, which conflates surface features (a foldable *phone*
@@ -60,6 +69,21 @@ export const sites: Record<string, SiteDefinition> = {
       "tablet price drop",
     ],
     searchCountry: "us",
+    imageSources: ["ogimage"],
+    officialImageDomains: [
+      "apple.com",
+      "samsung.com",
+      "news.samsung.com",
+      "lenovo.com",
+      "xiaomi.com",
+      "mi.com",
+      "huawei.com",
+      "consumer.huawei.com",
+      "honor.com",
+      "oneplus.com",
+      "motorola.com",
+      "asus.com",
+    ],
     editorialScope: [
       "The site covers TABLET PRODUCT NEWS only. Be strict.",
       "ON TOPIC: new tablet launches and announcements; tablet hardware and specifications; the tablet's own operating-system/software updates (iPadOS, Android tablet software, HarmonyOS on tablets); tablet hands-on reviews; tablet prices, deals and discounts; tablet buying comparisons; and tablet accessories such as keyboards and styluses. Covered brands: iPad, Samsung Galaxy Tab, Lenovo, Xiaomi, Huawei MatePad, Honor, Teclast, OnePlus Pad, Moto Pad, and e-ink/e-paper tablets.",
@@ -90,6 +114,8 @@ export const sites: Record<string, SiteDefinition> = {
       "free game keep forever",
     ],
     searchCountry: "us",
+    imageSources: ["steam", "ogimage"],
+    officialImageDomains: ["store.steampowered.com", "epicgames.com", "gog.com"],
     editorialScope: [
       "The site covers PC GAMES THAT ARE BEING GIVEN AWAY FOR FREE (or 'free to keep' for a limited time) on the Epic Games Store, Steam, GOG and Amazon Prime Gaming. Be strict.",
       "ON TOPIC: a specific game made free to claim/keep on one of those stores (with a claim window); an announced upcoming free giveaway; a notable free-game news item such as a store changing how its free games work. Always about a concrete title or a concrete giveaway, tied to a claim deadline.",
